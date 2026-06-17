@@ -3,8 +3,17 @@
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
     "composite": true,
+    "baseUrl": ".",
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ],
+      "@gestor/shared/*": [
+        "../../packages/shared/src/*"
+      ]
+    },
     "types": [
       "node"
     ]
@@ -13,4 +22,3 @@
     "vite.config.ts"
   ]
 }
-
