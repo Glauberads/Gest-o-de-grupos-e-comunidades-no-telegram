@@ -2,7 +2,7 @@ import cors from "@fastify/cors";
 import sensible from "@fastify/sensible";
 import Fastify from "fastify";
 
-import { env } from "./config/env.js";
+import { allowedAppUrls } from "./config/env.js";
 import { IntegrationError } from "./lib/errors.js";
 import { logger } from "./lib/logger.js";
 import { appRoutes } from "./routes/index.js";
@@ -13,7 +13,7 @@ export function buildApp() {
   });
 
   app.register(cors, {
-    origin: [env.APP_URL]
+    origin: allowedAppUrls
   });
   app.register(sensible);
   app.register(appRoutes);

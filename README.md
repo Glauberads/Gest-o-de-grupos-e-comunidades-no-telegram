@@ -36,6 +36,57 @@ MVP SaaS para venda e operacao de comunidades pagas no Telegram com checkout Pix
 - Script para promover usuarios a `super_admin` via `app_metadata`.
 - Checkout Pix, Telegram e webhooks ainda estao em modo base estrutural, prontos para a proxima iteracao funcional.
 
+## Deploy recomendado atual
+
+- Frontend: Cloudflare Pages apontando para `apps/web`.
+- Backend: Render Web Service usando `render.yaml`.
+- Banco e Auth: Supabase.
+
+### Cloudflare Pages
+
+- Framework preset: `Vite`.
+- Root directory: `apps/web`.
+- Build command: `npm install && npm run build`.
+- Build output directory: `dist`.
+- Variaveis obrigatorias:
+  - `VITE_API_URL=https://<seu-backend-render>.onrender.com`
+  - `VITE_SUPABASE_URL=https://exuffrthxjvnankwzcqh.supabase.co`
+  - `VITE_SUPABASE_ANON_KEY=<sua-anon-key>`
+- O arquivo `apps/web/public/_redirects` ja foi adicionado para o SPA fallback do React Router.
+
+### Render
+
+- O arquivo `render.yaml` ja descreve o servico do backend.
+- Se preferir configurar manualmente no painel:
+  - Service type: `Web Service`
+  - Runtime: `Node`
+  - Root directory: `.`
+  - Build command: `npm install && npm run build -w @gestor/api`
+  - Start command: `npm run start -w @gestor/api`
+  - Health check path: `/health`
+- Variaveis obrigatorias:
+  - `APP_URL=https://<seu-projeto>.pages.dev`
+  - `APP_URLS=https://<seu-projeto>.pages.dev,https://<dominio-custom>`
+  - `DATABASE_URL=<connection-string-se-voce-for-usar>`
+  - `SUPABASE_URL=https://exuffrthxjvnankwzcqh.supabase.co`
+  - `SUPABASE_ANON_KEY=<sua-anon-key>`
+  - `SUPABASE_SERVICE_ROLE_KEY=<sua-service-role>`
+  - `JWT_SECRET=<segredo-forte>`
+  - `ASAAS_BASE_URL=https://api-sandbox.asaas.com/v3`
+  - `ASAAS_API_KEY=<sua-chave-asaas>`
+  - `ASAAS_WEBHOOK_TOKEN=<token-webhook-asaas>`
+  - `TELEGRAM_BOT_TOKEN=<token-bot>`
+  - `TELEGRAM_WEBHOOK_SECRET=<segredo-webhook-telegram>`
+
+### Ordem de publicacao
+
+1. Aplicar `supabase/migrations/0001_initial_schema.sql` no projeto Supabase.
+2. Publicar a API no Render e copiar a URL publica.
+3. Configurar `VITE_API_URL` no Cloudflare Pages com a URL do Render.
+4. Publicar o frontend no Cloudflare Pages.
+5. Atualizar `APP_URL` e `APP_URLS` no Render com a URL final do Pages.
+6. Configurar webhooks do Asaas e do Telegram apontando para o backend publicado.
+
 ## Riscos tecnicos
 
 - Permissoes do Telegram: o bot precisa estar como administrador com permissao para aprovar/restringir membros.

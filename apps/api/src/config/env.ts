@@ -7,6 +7,7 @@ const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().default(3333),
   APP_URL: z.url().default("http://localhost:5173"),
+  APP_URLS: z.string().optional(),
   DATABASE_URL: z.string().min(1),
   SUPABASE_URL: z.string().optional(),
   SUPABASE_ANON_KEY: z.string().optional(),
@@ -20,3 +21,9 @@ const envSchema = z.object({
 });
 
 export const env = envSchema.parse(process.env);
+
+export const allowedAppUrls = env.APP_URLS
+  ? env.APP_URLS.split(",")
+      .map((value) => value.trim())
+      .filter(Boolean)
+  : [env.APP_URL];
