@@ -1,0 +1,20 @@
+{
+  "name": "gestor-comunidades-telegram",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev -w @gestor/api\" \"npm run dev -w @gestor/web\"",
+    "build": "npm run build --workspaces",
+    "lint": "npm run lint --workspaces",
+    "check": "npm run check --workspaces",
+    "set:super-admin": "node scripts/set-super-admin.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.0",
+    "typescript": "^5.9.2"
+  }
+}
