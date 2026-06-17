@@ -2,6 +2,10 @@
 
 MVP SaaS para venda e operacao de comunidades pagas no Telegram com checkout Pix via Asaas, automacao por bot e arquitetura preparada para multi-tenant.
 
+## Documentacao complementar
+
+- Manual operacional: `manual de uso.md`
+
 ## Arquitetura proposta
 
 ### Contextos principais

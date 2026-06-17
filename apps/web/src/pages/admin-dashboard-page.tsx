@@ -1,4 +1,5 @@
 import { ArrowUpRight, CreditCard, LogOut, Users, Wallet } from "lucide-react";
+import { Link } from "react-router-dom";
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,7 +32,12 @@ export function AdminDashboardPage() {
                   MVP foundation
                 </span>
                 <div className="flex items-center gap-2">
-                  <Button variant="outline">Conectar bot</Button>
+                  <Button asChild variant="outline">
+                    <Link to="/communities">Comunidades</Link>
+                  </Button>
+                  <Button asChild variant="outline">
+                    <Link to="/telegram/connect">Conectar bot</Link>
+                  </Button>
                   <Button
                     variant="outline"
                     onClick={() => {

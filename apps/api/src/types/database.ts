@@ -144,6 +144,47 @@ export type Database = {
         };
         Relationships: [];
       };
+      telegram_chats: {
+        Row: {
+          bot_is_admin: boolean;
+          can_invite_users: boolean;
+          can_restrict_members: boolean;
+          chat_type: string;
+          community_id: string;
+          created_at: string;
+          id: string;
+          organization_id: string;
+          telegram_chat_id: string;
+          title: string | null;
+          updated_at: string;
+          webhook_secret: string | null;
+        };
+        Insert: {
+          bot_is_admin?: boolean;
+          can_invite_users?: boolean;
+          can_restrict_members?: boolean;
+          chat_type?: string;
+          community_id: string;
+          organization_id: string;
+          telegram_chat_id: string;
+          title?: string | null;
+          webhook_secret?: string | null;
+        };
+        Update: {
+          bot_is_admin?: boolean;
+          can_invite_users?: boolean;
+          can_restrict_members?: boolean;
+          chat_type?: string;
+          community_id?: string;
+          id?: string;
+          organization_id?: string;
+          telegram_chat_id?: string;
+          title?: string | null;
+          updated_at?: string;
+          webhook_secret?: string | null;
+        };
+        Relationships: [];
+      };
       users: {
         Row: {
           created_at: string;

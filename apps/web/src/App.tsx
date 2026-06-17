@@ -3,7 +3,9 @@ import { Navigate, Route, Routes } from "react-router-dom";
 
 import { useAuth } from "./features/auth/use-auth";
 import { AuthPage } from "./pages/auth-page";
+import { CommunitiesPage } from "./pages/communities-page";
 import { AdminDashboardPage } from "./pages/admin-dashboard-page";
+import { ConnectBotPage } from "./pages/connect-bot-page";
 import { PublicCheckoutPage } from "./pages/public-checkout-page";
 
 export function App() {
@@ -23,6 +25,14 @@ export function App() {
       <Route
         path="/"
         element={session ? <AdminDashboardPage /> : <Navigate to="/auth" replace />}
+      />
+      <Route
+        path="/telegram/connect"
+        element={session ? <ConnectBotPage /> : <Navigate to="/auth" replace />}
+      />
+      <Route
+        path="/communities"
+        element={session ? <CommunitiesPage /> : <Navigate to="/auth" replace />}
       />
       <Route path="/c/:slug" element={<PublicCheckoutPage />} />
     </Routes>
