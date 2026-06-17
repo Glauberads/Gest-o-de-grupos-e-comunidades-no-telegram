@@ -36,6 +36,9 @@ export function AdminDashboardPage() {
                     <Link to="/communities">Comunidades</Link>
                   </Button>
                   <Button asChild variant="outline">
+                    <Link to="/subscription">Assinatura</Link>
+                  </Button>
+                  <Button asChild variant="outline">
                     <Link to="/telegram/connect">Conectar bot</Link>
                   </Button>
                   <Button

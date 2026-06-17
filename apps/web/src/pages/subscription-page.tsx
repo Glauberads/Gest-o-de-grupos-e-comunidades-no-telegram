@@ -23,14 +23,22 @@ export function SubscriptionPage() {
   const [checkout, setCheckout] = useState<any>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [submittingPlanId, setSubmittingPlanId] = useState<string | null>(null);
+  const [customerDocument, setCustomerDocument] = useState("");
 
   if (!organizationsLoading && organization?.status === "active") {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/app" replace />;
   }
 
   async function handleCheckout(platformPlanId: string) {
     if (!organization?.id) {
       setMessage("Nenhuma organizacao encontrada para este usuario.");
+      return;
+    }
+
+    const sanitizedDocument = customerDocument.replace(/\D/g, "");
+
+    if (sanitizedDocument.length !== 11 && sanitizedDocument.length !== 14) {
+      setMessage("Informe um CPF ou CNPJ valido para gerar a cobranca.");
       return;
     }
 
@@ -42,7 +50,8 @@ export function SubscriptionPage() {
         method: "POST",
         body: {
           organizationId: organization.id,
-          platformPlanId
+          platformPlanId,
+          customerDocument: sanitizedDocument
         }
       });
 
@@ -117,6 +126,18 @@ export function SubscriptionPage() {
               Gere o pagamento Pix e aguarde a confirmacao do webhook do Asaas para liberar o painel.
             </p>
 
+            <div className="mt-4">
+              <label className="block space-y-2">
+                <span className="text-sm font-medium text-slate-300">CPF ou CNPJ do responsavel</span>
+                <input
+                  value={customerDocument}
+                  onChange={(event) => setCustomerDocument(event.target.value)}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 outline-none transition focus:border-sky-400"
+                  placeholder="Digite apenas numeros ou com pontuacao"
+                />
+              </label>
+            </div>
+
             {message ? (
               <div className="mt-4 rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-300">
                 {message}
@@ -159,4 +180,3 @@ export function SubscriptionPage() {
     </main>
   );
 }
-

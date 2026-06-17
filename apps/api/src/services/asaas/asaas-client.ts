@@ -14,6 +14,7 @@ type CreatePixPaymentInput = {
 type CreateCustomerInput = {
   name: string;
   email?: string;
+  cpfCnpj?: string;
   externalReference: string;
 };
 

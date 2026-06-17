@@ -7,6 +7,7 @@ import { AuthPage } from "./pages/auth-page";
 import { CommunitiesPage } from "./pages/communities-page";
 import { AdminDashboardPage } from "./pages/admin-dashboard-page";
 import { ConnectBotPage } from "./pages/connect-bot-page";
+import { PublicLandingPage } from "./pages/public-landing-page";
 import { PublicCheckoutPage } from "./pages/public-checkout-page";
 import { SubscriptionPage } from "./pages/subscription-page";
 
@@ -29,13 +30,14 @@ export function App() {
 
   return (
     <Routes>
+      <Route path="/" element={<PublicLandingPage />} />
       <Route path="/auth" element={<AuthPage />} />
       <Route
         path="/subscription"
         element={session ? <SubscriptionPage /> : <Navigate to="/auth" replace />}
       />
       <Route
-        path="/"
+        path="/app"
         element={
           session ? (
             organizationNeedsBilling ? <Navigate to="/subscription" replace /> : <AdminDashboardPage />
@@ -65,6 +67,7 @@ export function App() {
         }
       />
       <Route path="/c/:slug" element={<PublicCheckoutPage />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

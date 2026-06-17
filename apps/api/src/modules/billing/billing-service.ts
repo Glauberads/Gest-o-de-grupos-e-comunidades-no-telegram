@@ -20,6 +20,7 @@ export class BillingService {
     organizationId: string;
     platformPlanId: string;
     customerEmail?: string;
+    customerDocument: string;
   }) {
     const organization = await this.organizationRepository.findById(input.organizationId);
     const plan = (await this.platformPlanRepository.findById(input.platformPlanId)) as any;
@@ -33,6 +34,7 @@ export class BillingService {
     const customer = await asaasClient.createCustomer({
       name: organization.name,
       email: input.customerEmail,
+      cpfCnpj: input.customerDocument,
       externalReference: organization.id
     });
 

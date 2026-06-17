@@ -10,7 +10,13 @@ import { BillingService } from "./billing-service.js";
 
 const billingCheckoutSchema = z.object({
   organizationId: z.uuid(),
-  platformPlanId: z.uuid()
+  platformPlanId: z.uuid(),
+  customerDocument: z
+    .string()
+    .transform((value) => value.replace(/\D/g, ""))
+    .refine((value) => value.length === 11 || value.length === 14, {
+      message: "CPF/CNPJ invalido"
+    })
 });
 
 export const billingRoutes: FastifyPluginAsync = async (app) => {
@@ -35,7 +41,8 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
     const checkout = await billingService.createPixCheckout({
       organizationId: payload.organizationId,
       platformPlanId: payload.platformPlanId,
-      customerEmail: user.email
+      customerEmail: user.email,
+      customerDocument: payload.customerDocument
     });
 
     return reply.code(201).send(checkout);
@@ -88,7 +95,8 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
     const checkout = await billingService.createPixCheckout({
       organizationId: payload.organizationId,
       platformPlanId: payload.platformPlanId,
-      customerEmail: user.email
+      customerEmail: user.email,
+      customerDocument: payload.customerDocument
     });
 
     return reply.code(201).send(checkout);

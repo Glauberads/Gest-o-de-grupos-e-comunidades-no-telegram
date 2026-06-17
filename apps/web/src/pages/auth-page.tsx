@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { LoaderCircle } from "lucide-react";
-import { Navigate } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -17,7 +17,7 @@ export function AuthPage() {
   const [message, setMessage] = useState<string | null>(null);
 
   if (!loading && session) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/app" replace />;
   }
 
   async function handleSubmit(formData: FormData) {
@@ -85,6 +85,9 @@ export function AuthPage() {
           <p className="mt-4 text-sm text-slate-300">
             Crie sua conta, ative a assinatura da plataforma e depois conecte seu bot Telegram para operar a comunidade.
           </p>
+          <Button asChild variant="outline" className="mt-6 w-fit border-slate-700 text-slate-100 hover:bg-slate-800">
+            <Link to="/">Voltar para a landing page</Link>
+          </Button>
         </Card>
 
         <Card className="bg-white">
