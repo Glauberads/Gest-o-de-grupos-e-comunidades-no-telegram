@@ -1,10 +1,25 @@
 # Gestor de Comunidades Telegram
 
-MVP SaaS para venda e operacao de comunidades pagas no Telegram com checkout Pix via Asaas, automacao por bot e arquitetura preparada para multi-tenant.
+SaaS multi-tenant para donos de comunidades Telegram. O cliente assina a plataforma, libera o painel via Asaas, conecta o bot ao grupo e gerencia moderacao, automacoes e operacao da comunidade.
 
 ## Documentacao complementar
 
 - Manual operacional: `manual de uso.md`
+
+## Regra de negocio atual
+
+O fluxo principal do MVP e:
+
+1. O dono da comunidade cria conta.
+2. O sistema cria a `organization` em `pending_payment`.
+3. O cliente escolhe um `platform_plan`.
+4. O backend gera cobranca Pix da assinatura do SaaS via Asaas da plataforma.
+5. O webhook confirma o pagamento.
+6. A `organization` e a `organization_subscription` ficam `active`.
+7. O painel e liberado.
+8. O cliente conecta o bot Telegram e passa a operar a comunidade.
+
+O modulo futuro de cobranca dos membros da comunidade continua preparado na arquitetura, mas nao e mais o fluxo principal do MVP.
 
 ## Arquitetura proposta
 
@@ -25,11 +40,12 @@ MVP SaaS para venda e operacao de comunidades pagas no Telegram com checkout Pix
 
 ### Fluxo principal do MVP
 
-1. Admin cria organizacao, comunidade e planos.
-2. Checkout publico cria cliente e cobranca Pix no Asaas.
-3. Asaas envia webhook de confirmacao.
-4. API valida evento, persiste pagamento e ativa membro.
-5. Servico Telegram gera convite unico e libera o acesso.
+1. Admin cria conta e organizacao.
+2. Escolhe um plano SaaS.
+3. Gera Pix de assinatura via Asaas da plataforma.
+4. Webhook confirma o pagamento e ativa a organizacao.
+5. Cliente conecta o bot Telegram.
+6. Cliente gerencia comunidade, grupos e automacoes.
 
 ## Estado atual da implementacao
 
@@ -37,8 +53,10 @@ MVP SaaS para venda e operacao de comunidades pagas no Telegram com checkout Pix
 - Bootstrap automatico do primeiro tenant apos cadastro do admin.
 - API autenticada com token Bearer do Supabase para identificar o usuario.
 - Persistencia real de `users`, `organizations`, `organization_users`, `communities` e `plans`.
+- Camada de billing SaaS com `platform_plans`, `organization_subscriptions` e `organization_payments`.
 - Script para promover usuarios a `super_admin` via `app_metadata`.
-- Checkout Pix, Telegram e webhooks ainda estao em modo base estrutural, prontos para a proxima iteracao funcional.
+- Guardas de frontend para bloquear o painel quando a organizacao nao estiver `active`.
+- Fluxo de Telegram por bot com validacao de token, registro de grupo e mensagem de teste.
 
 ## Deploy recomendado atual
 
@@ -136,14 +154,14 @@ MVP SaaS para venda e operacao de comunidades pagas no Telegram com checkout Pix
 - `users`: identidade do admin.
 - `organizations`: tenant principal.
 - `organization_users`: vinculo N:N entre usuario e tenant.
-- `communities`: configuracao funcional e comercial da comunidade.
-- `telegram_chats`: metadados do grupo/canal e permissao do bot.
-- `plans`: catalogo de planos por comunidade.
-- `members`: ciclo de vida do acesso do comprador.
-- `asaas_customers`: espelho do customer remoto.
-- `payments`: cobrancas unicas e seus estados.
-- `subscriptions`: recorrencia futura.
-- `invite_links`: links gerados e consumidos pelo Telegram.
+- `platform_plans`: planos do SaaS.
+- `organization_subscriptions`: assinatura do cliente para usar a plataforma.
+- `organization_payments`: pagamentos da assinatura SaaS.
+- `communities`: configuracao funcional e comercial da comunidade do cliente.
+- `telegram_bots`: bot conectado por organization.
+- `telegram_groups`: grupos/canais vinculados por organization.
+- `plans`: preparado para community plans futuros.
+- `members`, `payments`, `subscriptions`, `invite_links`: base para modulo futuro de cobranca de membros.
 - `webhook_events`: auditoria e idempotencia.
 - `bot_logs`: rastreio de acoes de automacao.
 - `automations`: regras parametrizadas por comunidade.
@@ -202,12 +220,20 @@ Copie `apps/api/.env.example` para `apps/api/.env` e `apps/web/.env.example` par
 - `GET /health`
 - `GET /api/auth/me`
 - `POST /api/auth/bootstrap`
+- `GET /api/platform-plans`
+- `POST /api/billing/checkout/pix`
+- `GET /api/billing/subscription`
+- `POST /api/billing/reactivate`
 - `GET /api/organizations`
 - `POST /api/communities`
 - `GET /api/communities?organizationId=<uuid>`
 - `POST /api/plans`
 - `GET /api/plans?organizationId=<uuid>&communityId=<uuid>`
-- `POST /api/public/checkout/pix`
+- `POST /api/telegram/bot/connect`
+- `GET /api/telegram/bot/status`
+- `POST /api/telegram/test-message`
+- `POST /api/telegram/groups`
+- `GET /api/telegram/groups?organizationId=<uuid>`
 - `POST /api/webhooks/asaas`
 
 ## Comandos

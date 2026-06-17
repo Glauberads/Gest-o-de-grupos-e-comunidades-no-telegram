@@ -51,13 +51,12 @@ export function AdminDashboardPage() {
               </div>
               <div className="max-w-2xl space-y-4">
                 <h1 className="text-4xl font-semibold tracking-tight text-slate-900">
-                  Venda acesso ao Telegram com Pix, automacao e operacao multi-tenant.
+                  Gerencie sua comunidade Telegram com automacao, moderacao e operacao SaaS.
                 </h1>
                 <p className="text-base text-slate-600">
                   Ola, {adminName}.{" "}
-                  Esta base ja organiza dashboard, checkout publico, API modular,
-                  schema inicial e servicos separados para Telegram, Asaas,
-                  membros e webhooks.
+                  Sua assinatura do sistema libera o painel, a conexao do bot Telegram
+                  e a base das automacoes para operar a sua comunidade.
                 </p>
                 <p className="text-sm text-slate-500">
                   Tenant atual:{" "}
@@ -85,8 +84,8 @@ export function AdminDashboardPage() {
               </p>
               <div className="space-y-3 text-sm text-slate-300">
                 <p>1. Persistir auth, comunidades e planos no Postgres.</p>
-                <p>2. Conectar webhook real do Asaas com idempotencia.</p>
-                <p>3. Liberar convite Telegram apos pagamento confirmado.</p>
+                <p>2. Conectar webhook real do Asaas da plataforma com idempotencia.</p>
+                <p>3. Evoluir moderacao, membros e automacoes do bot.</p>
               </div>
             </div>
             <Button className="mt-6 w-full bg-sky-400 text-slate-950 hover:bg-sky-300">
@@ -97,8 +96,8 @@ export function AdminDashboardPage() {
 
         <section className="grid gap-4 lg:grid-cols-3">
           {[
-            "services/asaas com Pix primeiro",
-            "services/telegram para convite e moderacao",
+            "assinatura SaaS com Asaas da plataforma",
+            "telegram bot para operacao e moderacao",
             "webhooks auditaveis com logs e payload bruto"
           ].map((item) => (
             <Card key={item} className="flex items-center justify-between gap-3">

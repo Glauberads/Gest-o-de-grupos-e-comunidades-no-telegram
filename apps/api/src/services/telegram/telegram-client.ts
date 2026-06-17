@@ -49,7 +49,44 @@ export class TelegramClient {
 
     return payload.result;
   }
+
+  async getMe(token: string) {
+    const response = await fetch(`https://api.telegram.org/bot${token}/getMe`);
+    const payload = await response.json();
+
+    if (!response.ok || !payload.ok) {
+      throw new IntegrationError("Failed to validate Telegram bot", {
+        status: response.status,
+        payload
+      });
+    }
+
+    return payload.result;
+  }
+
+  async sendMessage(token: string, chatId: string, text: string) {
+    const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text
+      })
+    });
+
+    const payload = await response.json();
+
+    if (!response.ok || !payload.ok) {
+      throw new IntegrationError("Failed to send Telegram test message", {
+        status: response.status,
+        payload
+      });
+    }
+
+    return payload.result;
+  }
 }
 
 export const telegramClient = new TelegramClient();
-

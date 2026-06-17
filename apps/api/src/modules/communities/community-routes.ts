@@ -33,6 +33,16 @@ export const communityRoutes: FastifyPluginAsync = async (app) => {
       user.id
     );
 
+    const organization = await new OrganizationRepository(supabase).findById(
+      payload.organizationId
+    );
+
+    if (!user.isSuperAdmin && organization.status !== "active") {
+      return reply.code(403).send({
+        message: "Organization subscription must be active to manage communities"
+      });
+    }
+
     const community = await new CommunityRepository(supabase).create({
       organization_id: payload.organizationId,
       name: payload.name,
@@ -61,6 +71,16 @@ export const communityRoutes: FastifyPluginAsync = async (app) => {
 
     await new OrganizationRepository(supabase).ensureMembership(organizationId, user.id);
 
+    const organization = await new OrganizationRepository(supabase).findById(
+      organizationId
+    );
+
+    if (!user.isSuperAdmin && organization.status !== "active") {
+      return reply.code(403).send({
+        message: "Organization subscription must be active to access communities"
+      });
+    }
+
     const communities = await new CommunityRepository(supabase).listByOrganization(
       organizationId
     );
@@ -70,4 +90,3 @@ export const communityRoutes: FastifyPluginAsync = async (app) => {
     });
   });
 };
-

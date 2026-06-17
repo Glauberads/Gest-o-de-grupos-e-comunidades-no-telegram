@@ -80,11 +80,10 @@ export function AuthPage() {
             Supabase auth
           </span>
           <h1 className="mt-6 text-4xl font-semibold tracking-tight">
-            Painel admin com autenticacao real e base pronta para multi-tenant.
+            SaaS para donos de comunidades Telegram com autenticacao real e base multi-tenant.
           </h1>
           <p className="mt-4 text-sm text-slate-300">
-            Nesta etapa, conectamos o login ao seu projeto Supabase e deixamos o backend preparado
-            para usar `service role` na persistencia segura do tenant.
+            Crie sua conta, ative a assinatura da plataforma e depois conecte seu bot Telegram para operar a comunidade.
           </p>
         </Card>
 

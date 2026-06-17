@@ -77,6 +77,109 @@ export type Database = {
         };
         Relationships: [];
       };
+      organization_payments: {
+        Row: {
+          amount_cents: number;
+          asaas_customer_id: string | null;
+          asaas_payment_id: string | null;
+          billing_type: string;
+          created_at: string;
+          due_date: string | null;
+          external_reference: string | null;
+          id: string;
+          invoice_url: string | null;
+          organization_id: string;
+          organization_subscription_id: string;
+          paid_at: string | null;
+          pix_payload: string | null;
+          pix_qr_code_image: string | null;
+          platform_plan_id: string;
+          raw_payload: Json;
+          status: string;
+          updated_at: string;
+        };
+        Insert: {
+          amount_cents: number;
+          asaas_customer_id?: string | null;
+          asaas_payment_id?: string | null;
+          billing_type?: string;
+          due_date?: string | null;
+          external_reference?: string | null;
+          invoice_url?: string | null;
+          organization_id: string;
+          organization_subscription_id: string;
+          paid_at?: string | null;
+          pix_payload?: string | null;
+          pix_qr_code_image?: string | null;
+          platform_plan_id: string;
+          raw_payload?: Json;
+          status?: string;
+        };
+        Update: {
+          amount_cents?: number;
+          asaas_customer_id?: string | null;
+          asaas_payment_id?: string | null;
+          billing_type?: string;
+          due_date?: string | null;
+          external_reference?: string | null;
+          id?: string;
+          invoice_url?: string | null;
+          organization_id?: string;
+          organization_subscription_id?: string;
+          paid_at?: string | null;
+          pix_payload?: string | null;
+          pix_qr_code_image?: string | null;
+          platform_plan_id?: string;
+          raw_payload?: Json;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      organization_subscriptions: {
+        Row: {
+          asaas_subscription_id: string | null;
+          cancelled_at: string | null;
+          created_at: string;
+          current_period_end: string | null;
+          current_period_start: string | null;
+          grace_period_ends_at: string | null;
+          id: string;
+          metadata: Json;
+          organization_id: string;
+          platform_plan_id: string;
+          started_at: string | null;
+          status: string;
+          updated_at: string;
+        };
+        Insert: {
+          asaas_subscription_id?: string | null;
+          cancelled_at?: string | null;
+          current_period_end?: string | null;
+          current_period_start?: string | null;
+          grace_period_ends_at?: string | null;
+          metadata?: Json;
+          organization_id: string;
+          platform_plan_id: string;
+          started_at?: string | null;
+          status?: string;
+        };
+        Update: {
+          asaas_subscription_id?: string | null;
+          cancelled_at?: string | null;
+          current_period_end?: string | null;
+          current_period_start?: string | null;
+          grace_period_ends_at?: string | null;
+          id?: string;
+          metadata?: Json;
+          organization_id?: string;
+          platform_plan_id?: string;
+          started_at?: string | null;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       organizations: {
         Row: {
           created_at: string;
@@ -99,6 +202,44 @@ export type Database = {
           owner_user_id?: string;
           slug?: string;
           status?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      platform_plans: {
+        Row: {
+          billing_interval: string;
+          code: string;
+          created_at: string;
+          description: string | null;
+          features: Json;
+          id: string;
+          name: string;
+          price_cents: number;
+          status: string;
+          trial_days: number;
+          updated_at: string;
+        };
+        Insert: {
+          billing_interval?: string;
+          code: string;
+          description?: string | null;
+          features?: Json;
+          name: string;
+          price_cents: number;
+          status?: string;
+          trial_days?: number;
+        };
+        Update: {
+          billing_interval?: string;
+          code?: string;
+          description?: string | null;
+          features?: Json;
+          id?: string;
+          name?: string;
+          price_cents?: number;
+          status?: string;
+          trial_days?: number;
           updated_at?: string;
         };
         Relationships: [];
@@ -182,6 +323,76 @@ export type Database = {
           title?: string | null;
           updated_at?: string;
           webhook_secret?: string | null;
+        };
+        Relationships: [];
+      };
+      telegram_bots: {
+        Row: {
+          created_at: string;
+          encrypted_token: string;
+          id: string;
+          is_active: boolean;
+          last_validated_at: string | null;
+          name: string | null;
+          organization_id: string;
+          updated_at: string;
+          username: string | null;
+        };
+        Insert: {
+          encrypted_token: string;
+          is_active?: boolean;
+          last_validated_at?: string | null;
+          name?: string | null;
+          organization_id: string;
+          username?: string | null;
+        };
+        Update: {
+          encrypted_token?: string;
+          id?: string;
+          is_active?: boolean;
+          last_validated_at?: string | null;
+          name?: string | null;
+          organization_id?: string;
+          updated_at?: string;
+          username?: string | null;
+        };
+        Relationships: [];
+      };
+      telegram_groups: {
+        Row: {
+          auto_approve_enabled: boolean;
+          chat_type: string;
+          community_id: string | null;
+          created_at: string;
+          id: string;
+          organization_id: string;
+          telegram_bot_id: string | null;
+          telegram_chat_id: string;
+          title: string | null;
+          updated_at: string;
+          welcome_message: string | null;
+        };
+        Insert: {
+          auto_approve_enabled?: boolean;
+          chat_type?: string;
+          community_id?: string | null;
+          organization_id: string;
+          telegram_bot_id?: string | null;
+          telegram_chat_id: string;
+          title?: string | null;
+          welcome_message?: string | null;
+        };
+        Update: {
+          auto_approve_enabled?: boolean;
+          chat_type?: string;
+          community_id?: string | null;
+          id?: string;
+          organization_id?: string;
+          telegram_bot_id?: string | null;
+          telegram_chat_id?: string;
+          title?: string | null;
+          updated_at?: string;
+          welcome_message?: string | null;
         };
         Relationships: [];
       };

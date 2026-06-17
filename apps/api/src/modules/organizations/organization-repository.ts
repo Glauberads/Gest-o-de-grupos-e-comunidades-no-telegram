@@ -10,6 +10,7 @@ type OrganizationRecord = {
   slug: string;
   status: string;
   owner_user_id: string;
+  owner_email?: string;
 };
 
 export class OrganizationRepository {
@@ -39,7 +40,8 @@ export class OrganizationRepository {
         .insert({
           owner_user_id: input.ownerUserId,
           name: input.name,
-          slug: input.slug
+          slug: input.slug,
+          status: "pending_payment"
         })
         .select("id, name, slug, status, owner_user_id")
         .single(),
@@ -71,5 +73,26 @@ export class OrganizationRepository {
       .single();
 
     return unwrapSupabase(result, "User is not allowed to access this organization");
+  }
+
+  async findById(organizationId: string) {
+    const result = await (this.supabase as any)
+      .from("organizations")
+      .select("id, name, slug, status, owner_user_id")
+      .eq("id", organizationId)
+      .single();
+
+    return unwrapSupabase<OrganizationRecord>(result, "Failed to load organization");
+  }
+
+  async updateStatus(organizationId: string, status: string) {
+    const result = await (this.supabase as any)
+      .from("organizations")
+      .update({ status })
+      .eq("id", organizationId)
+      .select("id, name, slug, status, owner_user_id")
+      .single();
+
+    return unwrapSupabase<OrganizationRecord>(result, "Failed to update organization status");
   }
 }

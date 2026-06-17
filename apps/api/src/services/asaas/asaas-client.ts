@@ -11,7 +11,44 @@ type CreatePixPaymentInput = {
   externalReference: string;
 };
 
+type CreateCustomerInput = {
+  name: string;
+  email?: string;
+  externalReference: string;
+};
+
 export class AsaasClient {
+  async createCustomer(input: CreateCustomerInput) {
+    if (!env.ASAAS_API_KEY) {
+      logger.warn("Asaas API key not configured; returning mocked customer payload");
+
+      return {
+        id: `cus_${crypto.randomUUID()}`,
+        ...input
+      };
+    }
+
+    const response = await fetch(`${env.ASAAS_BASE_URL}/customers`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        access_token: env.ASAAS_API_KEY
+      },
+      body: JSON.stringify(input)
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+
+      throw new IntegrationError("Failed to create Asaas customer", {
+        status: response.status,
+        body
+      });
+    }
+
+    return response.json();
+  }
+
   async createPixPayment(input: CreatePixPaymentInput) {
     if (!env.ASAAS_API_KEY) {
       logger.warn("Asaas API key not configured; returning mocked payment payload");
@@ -51,4 +88,3 @@ export class AsaasClient {
 }
 
 export const asaasClient = new AsaasClient();
-
