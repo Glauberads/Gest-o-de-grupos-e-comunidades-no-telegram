@@ -108,6 +108,12 @@ export function SubscriptionPage() {
     OVERDUE: "border-rose-400/30 bg-rose-400/10 text-rose-200"
   };
 
+  const planHighlights: Record<string, string[]> = {
+    starter: ["1 comunidade", "Checkout Pix", "Base de automacao"],
+    pro: ["Mais automacoes", "Moderacao reforcada", "Operacao mais profissional"],
+    scale: ["Multiplas comunidades", "Equipe e escala", "Estrutura para crescer"]
+  };
+
   useEffect(() => {
     if (!latestPayment) {
       return;
@@ -172,18 +178,60 @@ export function SubscriptionPage() {
               <Card className="bg-white">Carregando planos...</Card>
             ) : (
               plans.map((plan) => (
-                <Card key={plan.id} className="bg-white">
-                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                    <div>
-                      <h2 className="text-xl font-semibold text-slate-900">{plan.name}</h2>
-                      <p className="text-sm text-slate-500">{plan.description ?? "Plano SaaS para operacao da comunidade."}</p>
+                <Card
+                  key={plan.id}
+                  className={`overflow-hidden border transition-all ${
+                    subscription?.platform_plans?.id === plan.id
+                      ? "border-sky-300 bg-[linear-gradient(180deg,_#ffffff_0%,_#f0f9ff_100%)] shadow-[0_18px_50px_rgba(14,165,233,0.18)]"
+                      : "border-slate-200 bg-white hover:border-sky-200 hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)]"
+                  }`}
+                >
+                  <div className="flex h-full flex-col gap-5 p-1">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h2 className="text-2xl font-semibold text-slate-900">{plan.name}</h2>
+                          {subscription?.platform_plans?.id === plan.id ? (
+                            <span className="rounded-full border border-sky-300 bg-sky-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700">
+                              Plano atual
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="mt-3 max-w-md text-sm leading-6 text-slate-500">
+                          {plan.description ?? "Plano SaaS para operacao da comunidade."}
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl bg-slate-950 px-4 py-3 text-right text-white shadow-lg">
+                        <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                          Assinatura
+                        </div>
+                        <div className="mt-1 text-3xl font-semibold">
+                          {formatCurrency(plan.price_cents)}
+                        </div>
+                        <div className="mt-1 text-xs text-slate-400">
+                          por mes
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-2xl font-semibold text-slate-900">
-                        {formatCurrency(plan.price_cents)}
+
+                    <div className="grid gap-3 md:grid-cols-3">
+                      {(planHighlights[plan.code] ?? ["Setup inicial", "Checkout integrado", "Painel liberado"]).map((item) => (
+                        <div
+                          key={item}
+                          className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700"
+                        >
+                          {item}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
+                      <div className="text-sm text-slate-500">
+                        Pagamento via Pix com liberacao automatica do painel.
                       </div>
                       <Button
-                        className="mt-3"
+                        className="min-w-40 bg-sky-500 text-white hover:bg-sky-600"
                         disabled={submittingPlanId === plan.id || organizationsLoading}
                         onClick={() => {
                           void handleCheckout(plan.id);
