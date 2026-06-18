@@ -26,11 +26,21 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}) 
     headers.set("Authorization", `Bearer ${session.access_token}`);
   }
 
-  const response = await fetch(`${apiUrl}${path}`, {
-    method: options.method ?? "GET",
-    headers,
-    body: options.body ? JSON.stringify(options.body) : undefined
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${apiUrl}${path}`, {
+      method: options.method ?? "GET",
+      headers,
+      body: options.body ? JSON.stringify(options.body) : undefined
+    });
+  } catch (error) {
+    throw new Error(
+      error instanceof Error && error.message === "Failed to fetch"
+        ? "Não foi possível falar com a API agora. Verifique se o backend está online e tente novamente."
+        : "Não foi possível concluir a solicitação agora."
+    );
+  }
 
   const payload = await response.json().catch(() => null);
 

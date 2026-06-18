@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { IntegrationError } from "../../lib/errors.js";
 import type { Database } from "../../types/database.js";
 import { unwrapSupabase } from "../../lib/supabase-helpers.js";
 
@@ -116,7 +117,13 @@ export class PlatformPlanRepository {
       .select("id", { head: true, count: "exact" })
       .eq("platform_plan_id", planId);
 
-    return ((unwrapSupabase(result, "Failed to count linked subscriptions") as any)?.count ?? 0) as number;
+    if (result.error) {
+      throw new IntegrationError("Failed to count linked subscriptions", {
+        error: result.error.message
+      });
+    }
+
+    return (result.count ?? 0) as number;
   }
 
   async createAdminAuditLog(input: Database["public"]["Tables"]["admin_audit_logs"]["Insert"]) {
