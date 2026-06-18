@@ -22,6 +22,22 @@ export class BillingRepository {
     return result.data;
   }
 
+  async getLatestOrganizationPayment(organizationId: string) {
+    const result = await (this.supabase as any)
+      .from("organization_payments")
+      .select("*")
+      .eq("organization_id", organizationId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (result.error) {
+      throw new Error(result.error.message);
+    }
+
+    return result.data;
+  }
+
   async upsertOrganizationSubscription(
     input: Database["public"]["Tables"]["organization_subscriptions"]["Insert"]
   ) {
@@ -74,4 +90,3 @@ export class BillingRepository {
     return unwrapSupabase(result, "Failed to update organization payment");
   }
 }
-

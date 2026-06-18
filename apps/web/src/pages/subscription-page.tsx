@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
@@ -15,16 +15,36 @@ function formatCurrency(value: number) {
   }).format(value / 100);
 }
 
+function formatDocument(value: string) {
+  const digits = value.replace(/\D/g, "");
+
+  if (digits.length <= 11) {
+    return digits
+      .replace(/^(\d{3})(\d)/, "$1.$2")
+      .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
+      .replace(/\.(\d{3})(\d)/, ".$1-$2")
+      .slice(0, 14);
+  }
+
+  return digits
+    .replace(/^(\d{2})(\d)/, "$1.$2")
+    .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
+    .replace(/\.(\d{3})(\d)/, ".$1/$2")
+    .replace(/(\d{4})(\d)/, "$1-$2")
+    .slice(0, 18);
+}
+
 export function SubscriptionPage() {
   const { organizations, loading: organizationsLoading } = useOrganizations();
   const organization = organizations[0];
   const { plans, loading: plansLoading } = usePlatformPlans();
-  const { subscription } = useBillingSubscription(organization?.id);
+  const { subscription, latestPayment, setLatestPayment } = useBillingSubscription(organization?.id);
   const [checkout, setCheckout] = useState<any>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [submittingPlanId, setSubmittingPlanId] = useState<string | null>(null);
   const [customerDocument, setCustomerDocument] = useState("");
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
 
   if (!organizationsLoading && organization?.status === "active") {
     return <Navigate to="/app" replace />;
@@ -57,6 +77,7 @@ export function SubscriptionPage() {
       });
 
       setCheckout(payload);
+      setLatestPayment(payload.payment);
       setMessage("Cobranca Pix gerada com sucesso.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Falha ao gerar cobranca.");
@@ -86,6 +107,48 @@ export function SubscriptionPage() {
     CONFIRMED: "border-emerald-400/30 bg-emerald-400/10 text-emerald-200",
     OVERDUE: "border-rose-400/30 bg-rose-400/10 text-rose-200"
   };
+
+  useEffect(() => {
+    if (!latestPayment) {
+      return;
+    }
+
+    setCheckout({
+      payment: latestPayment,
+      checkout: {
+        id: latestPayment.asaas_payment_id,
+        status: String(latestPayment.status ?? "").toUpperCase(),
+        invoiceUrl: latestPayment.invoice_url ?? null,
+        pixPayload: latestPayment.pix_payload ?? null,
+        pixQrCodeImage: latestPayment.pix_qr_code_image ?? null
+      }
+    });
+  }, [latestPayment]);
+
+  useEffect(() => {
+    if (!copyFeedback) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => setCopyFeedback(null), 2500);
+    return () => window.clearTimeout(timeoutId);
+  }, [copyFeedback]);
+
+  const activeCheckout = useMemo(() => checkout?.checkout ?? null, [checkout]);
+
+  async function handleCopyPix() {
+    if (!activeCheckout?.pixPayload) {
+      setCopyFeedback("Pix ainda indisponivel.");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(activeCheckout.pixPayload);
+      setCopyFeedback("Pix copiado com sucesso.");
+    } catch {
+      setCopyFeedback("Nao foi possivel copiar automaticamente.");
+    }
+  }
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.18),_transparent_35%),linear-gradient(180deg,_#020617_0%,_#0f172a_100%)] px-6 py-10 text-slate-50">
@@ -146,7 +209,7 @@ export function SubscriptionPage() {
                 <span className="text-sm font-medium text-slate-300">CPF ou CNPJ do responsavel</span>
                 <input
                   value={customerDocument}
-                  onChange={(event) => setCustomerDocument(event.target.value)}
+                  onChange={(event) => setCustomerDocument(formatDocument(event.target.value))}
                   className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 outline-none transition focus:border-sky-400"
                   placeholder="Digite apenas numeros ou com pontuacao"
                 />
@@ -159,57 +222,118 @@ export function SubscriptionPage() {
               </div>
             ) : null}
 
-            {checkout ? (
+            {activeCheckout ? (
               <div className="mt-6 space-y-4 text-sm">
-                <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="rounded-3xl border border-slate-800 bg-[linear-gradient(180deg,_rgba(15,23,42,0.96)_0%,_rgba(2,6,23,0.98)_100%)] p-5 shadow-[0_20px_60px_rgba(2,6,23,0.45)]">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
-                      <div className="text-slate-400">Situacao do pagamento</div>
-                      <div className="mt-1 text-base font-medium text-slate-100">
-                        {paymentStatusLabel[checkout.checkout.status] ?? checkout.checkout.status}
+                      <div className="text-xs uppercase tracking-[0.22em] text-sky-300">
+                        Checkout inteligente
                       </div>
+                      <div className="mt-2 text-lg font-medium text-slate-100">
+                        {paymentStatusLabel[activeCheckout.status] ?? activeCheckout.status}
+                      </div>
+                      <p className="mt-2 max-w-md text-sm text-slate-400">
+                        Pague com Pix e acompanhe a liberacao do painel em tempo real, sem sair desta tela.
+                      </p>
                     </div>
                     <span
-                      className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${paymentStatusTone[checkout.checkout.status] ?? "border-slate-700 bg-slate-800 text-slate-200"}`}
+                      className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${paymentStatusTone[activeCheckout.status] ?? "border-slate-700 bg-slate-800 text-slate-200"}`}
                     >
-                      {checkout.checkout.status}
+                      {activeCheckout.status}
                     </span>
                   </div>
-                  <p className="mt-3 text-sm text-slate-400">
-                    Assim que o Asaas confirmar o Pix, sua organizacao sera liberada automaticamente.
-                  </p>
-                </div>
-                <div>
-                  <div className="text-slate-400">Pix copia e cola</div>
-                  <textarea
-                    readOnly
-                    className="mt-2 min-h-32 w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-200"
-                    value={checkout.checkout.pixPayload ?? "Pix indisponivel no momento"}
-                  />
-                </div>
-                <div className="flex flex-wrap gap-3">
-                  {checkout.checkout.invoiceUrl ? (
-                    <>
-                      <Button
-                        className="bg-sky-400 text-slate-950 hover:bg-sky-300"
-                        onClick={() => setIsInvoiceModalOpen(true)}
-                      >
-                        Abrir cobranca aqui
-                      </Button>
-                      <a
-                        className="inline-flex items-center rounded-xl border border-slate-700 px-4 py-3 font-medium text-slate-100"
-                        href={checkout.checkout.invoiceUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Abrir em nova aba
-                      </a>
-                    </>
-                  ) : (
-                    <div className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-300">
-                      O Asaas ainda nao retornou uma pagina de cobranca para abrir.
+                  <div className="mt-5 grid gap-4 xl:grid-cols-[220px_1fr]">
+                    <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4">
+                      <div className="text-xs uppercase tracking-[0.18em] text-slate-400">
+                        QR Code Pix
+                      </div>
+                      <div className="mt-3 flex min-h-[188px] items-center justify-center rounded-2xl bg-white p-3">
+                        {activeCheckout.pixQrCodeImage ? (
+                          <img
+                            src={`data:image/png;base64,${activeCheckout.pixQrCodeImage}`}
+                            alt="QR Code Pix"
+                            className="h-44 w-44 rounded-xl object-contain"
+                          />
+                        ) : (
+                          <div className="px-4 text-center text-sm text-slate-500">
+                            QR Code ainda nao disponivel.
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  )}
+
+                    <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950 p-4">
+                      <div>
+                        <div className="text-xs uppercase tracking-[0.18em] text-slate-400">
+                          Pix copia e cola
+                        </div>
+                        <textarea
+                          readOnly
+                          className="mt-3 min-h-32 w-full rounded-2xl border border-slate-700 bg-slate-900 px-4 py-3 text-slate-200"
+                          value={activeCheckout.pixPayload ?? "Pix indisponivel no momento"}
+                        />
+                      </div>
+
+                      <div className="flex flex-wrap gap-3">
+                        <Button
+                          className="bg-sky-400 text-slate-950 hover:bg-sky-300"
+                          onClick={() => {
+                            void handleCopyPix();
+                          }}
+                        >
+                          Copiar Pix
+                        </Button>
+
+                        {activeCheckout.invoiceUrl ? (
+                          <>
+                            <Button
+                              variant="outline"
+                              className="border-slate-700 text-slate-100 hover:bg-slate-800"
+                              onClick={() => setIsInvoiceModalOpen(true)}
+                            >
+                              Abrir cobranca aqui
+                            </Button>
+                            <a
+                              className="inline-flex items-center rounded-xl border border-slate-700 px-4 py-3 font-medium text-slate-100"
+                              href={activeCheckout.invoiceUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              Abrir em nova aba
+                            </a>
+                          </>
+                        ) : null}
+                      </div>
+
+                      <div className="grid gap-3 md:grid-cols-3">
+                        <div className="rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3">
+                          <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Plano</div>
+                          <div className="mt-2 text-sm font-medium text-slate-100">
+                            {subscription?.platform_plans?.name ?? "Plano selecionado"}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3">
+                          <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Documento</div>
+                          <div className="mt-2 text-sm font-medium text-slate-100">
+                            {customerDocument || "Nao informado"}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3">
+                          <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Atualizacao</div>
+                          <div className="mt-2 text-sm font-medium text-slate-100">
+                            Automatica a cada 15s
+                          </div>
+                        </div>
+                      </div>
+
+                      {copyFeedback ? (
+                        <div className="rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-200">
+                          {copyFeedback}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -221,7 +345,7 @@ export function SubscriptionPage() {
         </section>
       </div>
 
-      {isInvoiceModalOpen && checkout?.checkout?.invoiceUrl ? (
+      {isInvoiceModalOpen && activeCheckout?.invoiceUrl ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4 py-6 backdrop-blur-sm">
           <div className="flex h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl border border-slate-800 bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
@@ -234,7 +358,7 @@ export function SubscriptionPage() {
               <div className="flex items-center gap-3">
                 <a
                   className="inline-flex items-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
-                  href={checkout.checkout.invoiceUrl}
+                  href={activeCheckout.invoiceUrl}
                   target="_blank"
                   rel="noreferrer"
                 >
@@ -248,7 +372,7 @@ export function SubscriptionPage() {
 
             <iframe
               title="Checkout Asaas"
-              src={checkout.checkout.invoiceUrl}
+              src={activeCheckout.invoiceUrl}
               className="h-full w-full bg-white"
             />
           </div>

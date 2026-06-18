@@ -80,6 +80,12 @@ export class BillingService {
   }
 
   async getSubscription(organizationId: string) {
-    return this.billingRepository.getOrganizationSubscription(organizationId);
+    const subscription = await this.billingRepository.getOrganizationSubscription(organizationId);
+    const latestPayment = await this.billingRepository.getLatestOrganizationPayment(organizationId);
+
+    return {
+      subscription,
+      latestPayment
+    };
   }
 }

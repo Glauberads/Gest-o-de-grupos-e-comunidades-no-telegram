@@ -70,8 +70,8 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
       new PlatformPlanRepository(supabase)
     );
 
-    const subscription = await billingService.getSubscription(query.organizationId);
-    return reply.code(200).send({ subscription });
+    const billing = await billingService.getSubscription(query.organizationId);
+    return reply.code(200).send(billing);
   });
 
   app.post("/billing/reactivate", async (request, reply) => {
