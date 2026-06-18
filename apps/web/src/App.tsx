@@ -20,6 +20,7 @@ import { useAuth } from "./features/auth/use-auth";
 import { useOrganizations } from "./features/organizations/use-organizations";
 import { AdminDashboardPage } from "./pages/admin-dashboard-page";
 import { AdminPlansPage } from "./pages/admin-plans-page";
+import { AdminPlatformDashboardPage } from "./pages/admin-platform-dashboard-page";
 import { AuthPage } from "./pages/auth-page";
 import { CommunitiesPage } from "./pages/communities-page";
 import { CommunityCreatePage } from "./pages/community-create-page";
@@ -54,8 +55,9 @@ function ProtectedLayout({
   const organizationNeedsBilling =
     organization &&
     ["pending_payment", "overdue", "suspended", "cancelled"].includes(organization.status);
+  const isSuperAdmin = Boolean(session.user.app_metadata?.is_super_admin);
 
-  if (requiresActiveSubscription && organizationNeedsBilling) {
+  if (!isSuperAdmin && requiresActiveSubscription && organizationNeedsBilling) {
     return <Navigate to="/app/subscription" replace />;
   }
 
@@ -84,6 +86,7 @@ export function App() {
       ["pending_payment", "overdue", "suspended", "cancelled"].includes(organization.status),
     [organization]
   );
+  const isSuperAdmin = Boolean(session?.user.app_metadata?.is_super_admin);
 
   if (loading || (session && organizationsLoading)) {
     return (
@@ -103,7 +106,9 @@ export function App() {
         <Route
           index
           element={
-            organizationNeedsBilling ? (
+            isSuperAdmin ? (
+              <Navigate to="/app/admin/dashboard" replace />
+            ) : organizationNeedsBilling ? (
               <Navigate to="/app/subscription" replace />
             ) : (
               <Navigate to="/app/dashboard" replace />
@@ -113,37 +118,37 @@ export function App() {
         <Route
           path="dashboard"
           element={
-            organizationNeedsBilling ? <Navigate to="/app/subscription" replace /> : <AdminDashboardPage />
+            organizationNeedsBilling && !isSuperAdmin ? <Navigate to="/app/subscription" replace /> : <AdminDashboardPage />
           }
         />
         <Route
           path="communities"
           element={
-            organizationNeedsBilling ? <Navigate to="/app/subscription" replace /> : <CommunitiesPage />
+            organizationNeedsBilling && !isSuperAdmin ? <Navigate to="/app/subscription" replace /> : <CommunitiesPage />
           }
         />
         <Route
           path="communities/new"
           element={
-            organizationNeedsBilling ? <Navigate to="/app/subscription" replace /> : <CommunityCreatePage />
+            organizationNeedsBilling && !isSuperAdmin ? <Navigate to="/app/subscription" replace /> : <CommunityCreatePage />
           }
         />
         <Route
           path="telegram/connect"
           element={
-            organizationNeedsBilling ? <Navigate to="/app/subscription" replace /> : <ConnectBotPage />
+            organizationNeedsBilling && !isSuperAdmin ? <Navigate to="/app/subscription" replace /> : <ConnectBotPage />
           }
         />
         <Route
           path="telegram/groups"
           element={
-            organizationNeedsBilling ? <Navigate to="/app/subscription" replace /> : <TelegramGroupsPage />
+            organizationNeedsBilling && !isSuperAdmin ? <Navigate to="/app/subscription" replace /> : <TelegramGroupsPage />
           }
         />
         <Route
           path="telegram/logs"
           element={
-            organizationNeedsBilling ? (
+            organizationNeedsBilling && !isSuperAdmin ? (
               <Navigate to="/app/subscription" replace />
             ) : (
               <ModulePlaceholderPage
@@ -163,7 +168,7 @@ export function App() {
         <Route
           path="automations/welcome"
           element={
-            organizationNeedsBilling ? (
+            organizationNeedsBilling && !isSuperAdmin ? (
               <Navigate to="/app/subscription" replace />
             ) : (
               <ModulePlaceholderPage
@@ -183,7 +188,7 @@ export function App() {
         <Route
           path="automations/approval"
           element={
-            organizationNeedsBilling ? (
+            organizationNeedsBilling && !isSuperAdmin ? (
               <Navigate to="/app/subscription" replace />
             ) : (
               <ModulePlaceholderPage
@@ -203,7 +208,7 @@ export function App() {
         <Route
           path="automations/messages"
           element={
-            organizationNeedsBilling ? (
+            organizationNeedsBilling && !isSuperAdmin ? (
               <Navigate to="/app/subscription" replace />
             ) : (
               <ModulePlaceholderPage
@@ -223,7 +228,7 @@ export function App() {
         <Route
           path="members/list"
           element={
-            organizationNeedsBilling ? (
+            organizationNeedsBilling && !isSuperAdmin ? (
               <Navigate to="/app/subscription" replace />
             ) : (
               <ModulePlaceholderPage
@@ -243,7 +248,7 @@ export function App() {
         <Route
           path="members/stats"
           element={
-            organizationNeedsBilling ? (
+            organizationNeedsBilling && !isSuperAdmin ? (
               <Navigate to="/app/subscription" replace />
             ) : (
               <ModulePlaceholderPage
@@ -260,21 +265,36 @@ export function App() {
             )
           }
         />
-        <Route path="subscription" element={<SubscriptionPage />} />
+        <Route
+          path="subscription"
+          element={isSuperAdmin ? <Navigate to="/app/admin/dashboard" replace /> : <SubscriptionPage />}
+        />
         <Route
           path="subscription/history"
           element={
-            <ModulePlaceholderPage
-              eyebrow="Assinatura"
-              title="Histórico financeiro da plataforma"
-              description="Aqui vamos detalhar faturas, tentativas, confirmações e recorrências do SaaS GestorGram."
-              icon={CreditCard}
-              highlights={[
-                "Linha do tempo de cobranças",
-                "Status por pagamento",
-                "Detalhes completos da recorrência"
-              ]}
-            />
+            isSuperAdmin ? (
+              <Navigate to="/app/admin/dashboard" replace />
+            ) : (
+              <ModulePlaceholderPage
+                eyebrow="Assinatura"
+                title="Histórico financeiro da plataforma"
+                description="Aqui vamos detalhar faturas, tentativas, confirmações e recorrências do SaaS GestorGram."
+                icon={CreditCard}
+                highlights={[
+                  "Linha do tempo de cobranças",
+                  "Status por pagamento",
+                  "Detalhes completos da recorrência"
+                ]}
+              />
+            )
+          }
+        />
+        <Route
+          path="admin/dashboard"
+          element={
+            <SuperAdminGuard>
+              <AdminPlatformDashboardPage />
+            </SuperAdminGuard>
           }
         />
         <Route

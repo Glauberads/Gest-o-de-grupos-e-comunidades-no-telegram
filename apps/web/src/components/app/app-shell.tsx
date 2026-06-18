@@ -12,7 +12,11 @@ import { appNavigation, flattenNavigation, getVisibleNavigation } from "@/lib/ap
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 
-function subscriptionBadgeVariant(status?: string) {
+function subscriptionBadgeVariant(status?: string, isSuperAdmin?: boolean) {
+  if (isSuperAdmin) {
+    return "dark" as const;
+  }
+
   switch (status) {
     case "active":
       return "success" as const;
@@ -26,7 +30,11 @@ function subscriptionBadgeVariant(status?: string) {
   }
 }
 
-function subscriptionLabel(status?: string) {
+function subscriptionLabel(status?: string, isSuperAdmin?: boolean) {
+  if (isSuperAdmin) {
+    return "Global";
+  }
+
   switch (status) {
     case "active":
       return "Ativo";
@@ -66,7 +74,11 @@ export function AppShell() {
     (session?.user.user_metadata.full_name as string | undefined) ??
     session?.user.email ??
     "Admin";
-  const currentPlanName = subscription?.platform_plans?.name ?? (organization?.status === "active" ? "Starter" : "Setup");
+  const currentPlanName = isSuperAdmin
+    ? "Platform Admin"
+    : subscription?.platform_plans?.name ?? (organization?.status === "active" ? "Starter" : "Setup");
+  const scopeTitle = isSuperAdmin ? "Escopo" : "Organização";
+  const scopeValue = isSuperAdmin ? "Plataforma GestorGram" : organization?.name ?? "Sem organização";
 
   return (
     <div className="min-h-screen bg-[#081120] text-slate-100">
@@ -180,14 +192,16 @@ export function AppShell() {
 
               <div className="hidden items-center gap-3 xl:flex">
                 <div className="rounded-2xl border border-slate-800 bg-slate-900/80 px-4 py-2">
-                  <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Organização</div>
-                  <div className="text-sm font-medium text-white">{organization?.name ?? "Sem organização"}</div>
+                  <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{scopeTitle}</div>
+                  <div className="text-sm font-medium text-white">{scopeValue}</div>
                 </div>
                 <div className="rounded-2xl border border-slate-800 bg-slate-900/80 px-4 py-2">
-                  <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Plano</div>
+                  <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Modo</div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-white">{currentPlanName}</span>
-                    <Badge variant={subscriptionBadgeVariant(organization?.status)}>{subscriptionLabel(organization?.status)}</Badge>
+                    <Badge variant={subscriptionBadgeVariant(organization?.status, isSuperAdmin)}>
+                      {subscriptionLabel(organization?.status, isSuperAdmin)}
+                    </Badge>
                   </div>
                 </div>
               </div>
@@ -230,10 +244,10 @@ export function AppShell() {
                         className="rounded-2xl px-4 py-3 text-left text-sm text-slate-300 transition hover:bg-slate-900 hover:text-white"
                         onClick={() => {
                           setIsUserMenuOpen(false);
-                          navigate("/app/subscription");
+                          navigate(isSuperAdmin ? "/app/admin/dashboard" : "/app/subscription");
                         }}
                       >
-                        Meu plano e cobrança
+                        {isSuperAdmin ? "Central da plataforma" : "Meu plano e cobrança"}
                       </button>
                       <button
                         type="button"

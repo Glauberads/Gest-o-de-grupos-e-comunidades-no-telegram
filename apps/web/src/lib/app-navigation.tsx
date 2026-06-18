@@ -25,13 +25,14 @@ export type AppNavItem = {
   icon: LucideIcon;
   description?: string;
   requiresSuperAdmin?: boolean;
+  hideForSuperAdmin?: boolean;
   children?: AppNavItem[];
 };
 
 export const appNavigation: AppNavItem[] = [
   {
     title: "Dashboard",
-    href: "/app",
+    href: "/app/dashboard",
     icon: Gauge,
     description: "Visão executiva"
   },
@@ -82,18 +83,25 @@ export const appNavigation: AppNavItem[] = [
     href: "/app/subscription",
     icon: CreditCard,
     description: "Plano e pagamentos",
+    hideForSuperAdmin: true,
     children: [
-      { title: "Meu plano", href: "/app/subscription", icon: CreditCard },
-      { title: "Histórico de pagamentos", href: "/app/subscription/history", icon: Receipt }
+      { title: "Meu plano", href: "/app/subscription", icon: CreditCard, hideForSuperAdmin: true },
+      { title: "Histórico de pagamentos", href: "/app/subscription/history", icon: Receipt, hideForSuperAdmin: true }
     ]
   },
   {
     title: "Admin",
-    href: "/app/admin/plans",
+    href: "/app/admin/dashboard",
     icon: UserCog,
     description: "Gestão global da plataforma",
     requiresSuperAdmin: true,
     children: [
+      {
+        title: "Visão da plataforma",
+        href: "/app/admin/dashboard",
+        icon: Gauge,
+        requiresSuperAdmin: true
+      },
       { title: "Planos SaaS", href: "/app/admin/plans", icon: CreditCard, requiresSuperAdmin: true },
       { title: "Usuários", href: "/app/admin/users", icon: Users, requiresSuperAdmin: true },
       { title: "Organizações", href: "/app/admin/organizations", icon: Building2, requiresSuperAdmin: true }
@@ -113,12 +121,24 @@ export const appNavigation: AppNavItem[] = [
 ];
 
 export function getVisibleNavigation(isSuperAdmin: boolean) {
-  return appNavigation
+  const baseItems = appNavigation
     .filter((item) => !item.requiresSuperAdmin || isSuperAdmin)
+    .filter((item) => !(isSuperAdmin && item.hideForSuperAdmin))
     .map((item) => ({
       ...item,
-      children: item.children?.filter((child) => !child.requiresSuperAdmin || isSuperAdmin)
+      children: item.children
+        ?.filter((child) => !child.requiresSuperAdmin || isSuperAdmin)
+        .filter((child) => !(isSuperAdmin && child.hideForSuperAdmin))
     }));
+
+  if (!isSuperAdmin) {
+    return baseItems;
+  }
+
+  const adminSection = baseItems.find((item) => item.title === "Admin");
+  const rest = baseItems.filter((item) => item.title !== "Admin");
+
+  return adminSection ? [rest[0], adminSection, ...rest.slice(1)] : baseItems;
 }
 
 export function flattenNavigation(items: AppNavItem[]): AppNavItem[] {
