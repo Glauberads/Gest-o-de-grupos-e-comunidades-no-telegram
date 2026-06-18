@@ -13,6 +13,7 @@ export type Community = {
   status: string;
   auto_approve_enabled: boolean;
   welcome_message: string | null;
+  created_at?: string;
 };
 
 export function useCommunities(organizationId?: string) {
@@ -30,9 +31,7 @@ export function useCommunities(organizationId?: string) {
 
     let active = true;
 
-    apiRequest<{ communities: Community[] }>(
-      `/api/communities?organizationId=${organizationId}`
-    )
+    apiRequest<{ communities: Community[] }>(`/api/communities?organizationId=${organizationId}`)
       .then((payload) => {
         if (!active) {
           return;
@@ -66,4 +65,3 @@ export function useCommunities(organizationId?: string) {
     setCommunities
   };
 }
-

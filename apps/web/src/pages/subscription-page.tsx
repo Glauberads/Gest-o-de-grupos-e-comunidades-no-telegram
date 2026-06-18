@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
+import { CheckCircle2, Copy, CreditCard, ExternalLink, QrCode, Wallet } from "lucide-react";
 
+import { PageLayout } from "@/components/app/page-layout";
+import { StatCard } from "@/components/app/stat-card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useBillingSubscription } from "@/features/billing/use-billing-subscription";
@@ -34,6 +38,18 @@ function formatDocument(value: string) {
     .slice(0, 18);
 }
 
+function formatDate(value?: string | null) {
+  if (!value) {
+    return "—";
+  }
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric"
+  }).format(new Date(value));
+}
+
 export function SubscriptionPage() {
   const { organizations, loading: organizationsLoading } = useOrganizations();
   const organization = organizations[0];
@@ -47,19 +63,19 @@ export function SubscriptionPage() {
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
 
   if (!organizationsLoading && organization?.status === "active") {
-    return <Navigate to="/app" replace />;
+    return <Navigate to="/app/dashboard" replace />;
   }
 
   async function handleCheckout(platformPlanId: string) {
     if (!organization?.id) {
-      setMessage("Nenhuma organizacao encontrada para este usuario.");
+      setMessage("Nenhuma organização encontrada para este usuário.");
       return;
     }
 
     const sanitizedDocument = customerDocument.replace(/\D/g, "");
 
     if (sanitizedDocument.length !== 11 && sanitizedDocument.length !== 14) {
-      setMessage("Informe um CPF ou CNPJ valido para gerar a cobranca.");
+      setMessage("Informe um CPF ou CNPJ válido para gerar a cobrança.");
       return;
     }
 
@@ -78,40 +94,33 @@ export function SubscriptionPage() {
 
       setCheckout(payload);
       setLatestPayment(payload.payment);
-      setMessage("Cobranca Pix gerada com sucesso.");
+      setMessage("Cobrança Pix gerada com sucesso.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Falha ao gerar cobranca.");
+      setMessage(error instanceof Error ? error.message : "Falha ao gerar cobrança.");
     } finally {
       setSubmittingPlanId(null);
     }
   }
 
   const statusCopy: Record<string, string> = {
-    pending_payment: "Aguardando pagamento para liberar o painel.",
-    overdue: "Pagamento vencido. Regularize para continuar usando o sistema.",
-    suspended: "Assinatura suspensa. Gere uma nova cobranca para reativar o acesso.",
-    cancelled: "Assinatura cancelada. Escolha um plano para reativar.",
-    trial: "Periodo de teste ativo."
-  };
-
-  const paymentStatusLabel: Record<string, string> = {
-    PENDING: "Pagamento aguardando confirmacao",
-    RECEIVED: "Pagamento recebido",
-    CONFIRMED: "Pagamento confirmado",
-    OVERDUE: "Pagamento vencido"
+    pending_payment: "Seu workspace está aguardando confirmação do pagamento para liberar o painel completo.",
+    overdue: "Existe uma cobrança vencida. Regularize para seguir com a operação.",
+    suspended: "A assinatura está suspensa. Gere uma nova cobrança para reativar o acesso.",
+    cancelled: "A assinatura foi cancelada. Escolha um plano para reativar o workspace.",
+    trial: "Seu período de teste está ativo."
   };
 
   const paymentStatusTone: Record<string, string> = {
-    PENDING: "border-amber-400/30 bg-amber-400/10 text-amber-200",
-    RECEIVED: "border-emerald-400/30 bg-emerald-400/10 text-emerald-200",
-    CONFIRMED: "border-emerald-400/30 bg-emerald-400/10 text-emerald-200",
-    OVERDUE: "border-rose-400/30 bg-rose-400/10 text-rose-200"
+    PENDING: "warning",
+    RECEIVED: "success",
+    CONFIRMED: "success",
+    OVERDUE: "danger"
   };
 
   const planHighlights: Record<string, string[]> = {
-    starter: ["1 comunidade", "Checkout Pix", "Base de automacao"],
-    pro: ["Mais automacoes", "Moderacao reforcada", "Operacao mais profissional"],
-    scale: ["Multiplas comunidades", "Equipe e escala", "Estrutura para crescer"]
+    starter: ["1 comunidade", "Checkout Pix", "Base de automação"],
+    pro: ["Mais automações", "Moderação reforçada", "Operação profissional"],
+    scale: ["Múltiplas comunidades", "Equipe e escala", "Estrutura para crescer"]
   };
 
   useEffect(() => {
@@ -144,7 +153,7 @@ export function SubscriptionPage() {
 
   async function handleCopyPix() {
     if (!activeCheckout?.pixPayload) {
-      setCopyFeedback("Pix ainda indisponivel.");
+      setCopyFeedback("Pix ainda indisponível.");
       return;
     }
 
@@ -152,66 +161,70 @@ export function SubscriptionPage() {
       await navigator.clipboard.writeText(activeCheckout.pixPayload);
       setCopyFeedback("Pix copiado com sucesso.");
     } catch {
-      setCopyFeedback("Nao foi possivel copiar automaticamente.");
+      setCopyFeedback("Não foi possível copiar automaticamente.");
     }
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.18),_transparent_35%),linear-gradient(180deg,_#020617_0%,_#0f172a_100%)] px-6 py-10 text-slate-50">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
-        <Card className="border-slate-800 bg-slate-900 text-slate-50">
-          <p className="text-sm uppercase tracking-[0.2em] text-sky-300">Assinatura SaaS</p>
-          <h1 className="mt-4 text-4xl font-semibold">Libere o painel para operar sua comunidade</h1>
-          <p className="mt-4 text-sm text-slate-300">
-            {organization ? statusCopy[organization.status] ?? "Selecione um plano para continuar." : "Carregando sua organizacao..."}
-          </p>
-          {subscription?.platform_plans?.name ? (
-            <p className="mt-3 text-sm text-slate-400">
-              Plano atual da organizacao: {subscription.platform_plans.name}
-            </p>
-          ) : null}
-        </Card>
+    <>
+      <PageLayout
+        title="Assinatura da plataforma"
+        description={organization ? statusCopy[organization.status] ?? "Selecione um plano para continuar." : "Carregando sua organização..."}
+        badge="Billing"
+      >
+        <div className="grid gap-4 md:grid-cols-3">
+          <StatCard
+            icon={Wallet}
+            label="Plano atual"
+            value={subscription?.platform_plans?.name ?? "Sem plano"}
+            description="Produto ativo para este workspace"
+          />
+          <StatCard
+            icon={CreditCard}
+            label="Próxima cobrança"
+            value={formatDate(latestPayment?.due_date)}
+            description={latestPayment?.status ? `Status: ${latestPayment.status}` : "Ainda sem cobrança ativa"}
+          />
+          <StatCard
+            icon={CheckCircle2}
+            label="Status"
+            value={organization?.status === "active" ? "Ativo" : "Aguardando"}
+            description="Liberação automática após confirmação do Asaas"
+          />
+        </div>
 
-        <section className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
+        <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
           <div className="grid gap-4">
             {plansLoading ? (
-              <Card className="bg-white">Carregando planos...</Card>
+              <Card className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">Carregando planos...</Card>
             ) : (
               plans.map((plan) => (
                 <Card
                   key={plan.id}
-                  className={`overflow-hidden border transition-all ${
+                  className={`rounded-[28px] border p-6 shadow-sm transition-all ${
                     subscription?.platform_plans?.id === plan.id
-                      ? "border-sky-300 bg-[linear-gradient(180deg,_#ffffff_0%,_#f0f9ff_100%)] shadow-[0_18px_50px_rgba(14,165,233,0.18)]"
-                      : "border-slate-200 bg-white hover:border-sky-200 hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)]"
+                      ? "border-sky-200 bg-[linear-gradient(180deg,_#ffffff_0%,_#f0f9ff_100%)] shadow-[0_18px_50px_rgba(14,165,233,0.12)]"
+                      : "border-slate-200 bg-white hover:border-sky-200"
                   }`}
                 >
-                  <div className="flex h-full flex-col gap-5 p-1">
-                    <div className="flex items-start justify-between gap-4">
+                  <div className="flex flex-col gap-5">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
                           <h2 className="text-2xl font-semibold text-slate-900">{plan.name}</h2>
                           {subscription?.platform_plans?.id === plan.id ? (
-                            <span className="rounded-full border border-sky-300 bg-sky-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700">
-                              Plano atual
-                            </span>
+                            <Badge variant="success">Plano atual</Badge>
                           ) : null}
                         </div>
                         <p className="mt-3 max-w-md text-sm leading-6 text-slate-500">
-                          {plan.description ?? "Plano SaaS para operacao da comunidade."}
+                          {plan.description ?? "Plano SaaS para operação da comunidade."}
                         </p>
                       </div>
 
-                      <div className="rounded-2xl bg-slate-950 px-4 py-3 text-right text-white shadow-lg">
-                        <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
-                          Assinatura
-                        </div>
-                        <div className="mt-1 text-3xl font-semibold">
-                          {formatCurrency(plan.price_cents)}
-                        </div>
-                        <div className="mt-1 text-xs text-slate-400">
-                          por mes
-                        </div>
+                      <div className="rounded-3xl bg-slate-950 px-5 py-4 text-white">
+                        <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Assinatura</div>
+                        <div className="mt-2 text-3xl font-semibold">{formatCurrency(plan.price_cents)}</div>
+                        <div className="mt-1 text-xs text-slate-400">por mês</div>
                       </div>
                     </div>
 
@@ -226,16 +239,12 @@ export function SubscriptionPage() {
                       ))}
                     </div>
 
-                    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
-                      <div className="text-sm text-slate-500">
-                        Pagamento via Pix com liberacao automatica do painel.
-                      </div>
+                    <div className="flex flex-col gap-4 border-t border-slate-200 pt-4 lg:flex-row lg:items-center lg:justify-between">
+                      <div className="text-sm text-slate-500">Pagamento via Pix com liberação automática do painel.</div>
                       <Button
-                        className="min-w-40 bg-sky-500 text-white hover:bg-sky-600"
+                        className="min-w-44"
                         disabled={submittingPlanId === plan.id || organizationsLoading}
-                        onClick={() => {
-                          void handleCheckout(plan.id);
-                        }}
+                        onClick={() => void handleCheckout(plan.id)}
                       >
                         {submittingPlanId === plan.id ? "Gerando Pix..." : "Assinar com Pix"}
                       </Button>
@@ -246,152 +255,127 @@ export function SubscriptionPage() {
             )}
           </div>
 
-          <Card className="border-slate-800 bg-slate-900 text-slate-50">
-            <h2 className="text-xl font-semibold">Pagamento atual</h2>
-            <p className="mt-2 text-sm text-slate-400">
-              Gere o pagamento Pix e aguarde a confirmacao do webhook do Asaas para liberar o painel.
-            </p>
+          <Card className="rounded-[28px] border border-slate-800 bg-[linear-gradient(180deg,_rgba(11,20,37,0.96)_0%,_rgba(15,23,42,0.98)_100%)] p-6 text-slate-50 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Checkout inteligente</div>
+                <h2 className="mt-2 text-xl font-semibold">Pagamento atual</h2>
+              </div>
+              {activeCheckout?.status ? (
+                <Badge variant={(paymentStatusTone[activeCheckout.status] as any) ?? "info"}>{activeCheckout.status}</Badge>
+              ) : (
+                <Badge variant="dark">Sem cobrança</Badge>
+              )}
+            </div>
 
-            <div className="mt-4">
-              <label className="block space-y-2">
-                <span className="text-sm font-medium text-slate-300">CPF ou CNPJ do responsavel</span>
+            <div className="mt-5">
+              <label className="space-y-2">
+                <span className="text-sm font-medium text-slate-300">CPF ou CNPJ do responsável</span>
                 <input
                   value={customerDocument}
                   onChange={(event) => setCustomerDocument(formatDocument(event.target.value))}
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 outline-none transition focus:border-sky-400"
-                  placeholder="Digite apenas numeros ou com pontuacao"
+                  className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-400"
+                  placeholder="Digite apenas números ou com pontuação"
                 />
               </label>
             </div>
 
             {message ? (
-              <div className="mt-4 rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-300">
+              <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-950 px-4 py-3 text-sm text-slate-300">
                 {message}
               </div>
             ) : null}
 
             {activeCheckout ? (
-              <div className="mt-6 space-y-4 text-sm">
-                <div className="rounded-3xl border border-slate-800 bg-[linear-gradient(180deg,_rgba(15,23,42,0.96)_0%,_rgba(2,6,23,0.98)_100%)] p-5 shadow-[0_20px_60px_rgba(2,6,23,0.45)]">
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                      <div className="text-xs uppercase tracking-[0.22em] text-sky-300">
-                        Checkout inteligente
-                      </div>
-                      <div className="mt-2 text-lg font-medium text-slate-100">
-                        {paymentStatusLabel[activeCheckout.status] ?? activeCheckout.status}
-                      </div>
-                      <p className="mt-2 max-w-md text-sm text-slate-400">
-                        Pague com Pix e acompanhe a liberacao do painel em tempo real, sem sair desta tela.
-                      </p>
-                    </div>
-                    <span
-                      className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${paymentStatusTone[activeCheckout.status] ?? "border-slate-700 bg-slate-800 text-slate-200"}`}
-                    >
-                      {activeCheckout.status}
-                    </span>
-                  </div>
-                  <div className="mt-5 grid gap-4 xl:grid-cols-[220px_1fr]">
-                    <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4">
-                      <div className="text-xs uppercase tracking-[0.18em] text-slate-400">
-                        QR Code Pix
-                      </div>
-                      <div className="mt-3 flex min-h-[188px] items-center justify-center rounded-2xl bg-white p-3">
-                        {activeCheckout.pixQrCodeImage ? (
-                          <img
-                            src={`data:image/png;base64,${activeCheckout.pixQrCodeImage}`}
-                            alt="QR Code Pix"
-                            className="h-44 w-44 rounded-xl object-contain"
-                          />
-                        ) : (
-                          <div className="px-4 text-center text-sm text-slate-500">
-                            QR Code ainda nao disponivel.
-                          </div>
-                        )}
-                      </div>
-                    </div>
+              <div className="mt-6 space-y-4">
+                <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+                  <div className="text-sm font-medium text-white">Pagamento aguardando confirmação</div>
+                  <p className="mt-2 text-sm text-slate-400">
+                    Pague com Pix e acompanhe a liberação em tempo real, sem sair desta tela.
+                  </p>
+                </div>
 
-                    <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950 p-4">
-                      <div>
-                        <div className="text-xs uppercase tracking-[0.18em] text-slate-400">
-                          Pix copia e cola
-                        </div>
-                        <textarea
-                          readOnly
-                          className="mt-3 min-h-32 w-full rounded-2xl border border-slate-700 bg-slate-900 px-4 py-3 text-slate-200"
-                          value={activeCheckout.pixPayload ?? "Pix indisponivel no momento"}
+                <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
+                  <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4">
+                    <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-slate-400">
+                      <QrCode className="h-4 w-4" /> QR Code Pix
+                    </div>
+                    <div className="mt-4 flex min-h-[188px] items-center justify-center rounded-2xl bg-white p-3">
+                      {activeCheckout.pixQrCodeImage ? (
+                        <img
+                          src={`data:image/png;base64,${activeCheckout.pixQrCodeImage}`}
+                          alt="QR Code Pix"
+                          className="h-44 w-44 rounded-xl object-contain"
                         />
-                      </div>
+                      ) : (
+                        <div className="px-4 text-center text-sm text-slate-500">QR Code ainda não disponível.</div>
+                      )}
+                    </div>
+                  </div>
 
-                      <div className="flex flex-wrap gap-3">
-                        <Button
-                          className="bg-sky-400 text-slate-950 hover:bg-sky-300"
-                          onClick={() => {
-                            void handleCopyPix();
-                          }}
-                        >
-                          Copiar Pix
-                        </Button>
+                  <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950 p-4">
+                    <div>
+                      <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Pix copia e cola</div>
+                      <textarea
+                        readOnly
+                        className="mt-3 min-h-32 w-full rounded-2xl border border-slate-700 bg-slate-900 px-4 py-3 text-slate-200"
+                        value={activeCheckout.pixPayload ?? "Pix indisponível no momento"}
+                      />
+                    </div>
 
-                        {activeCheckout.invoiceUrl ? (
-                          <>
-                            <Button
-                              variant="outline"
-                              className="border-slate-700 text-slate-100 hover:bg-slate-800"
-                              onClick={() => setIsInvoiceModalOpen(true)}
-                            >
-                              Abrir cobranca aqui
-                            </Button>
-                            <a
-                              className="inline-flex items-center rounded-xl border border-slate-700 px-4 py-3 font-medium text-slate-100"
-                              href={activeCheckout.invoiceUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              Abrir em nova aba
-                            </a>
-                          </>
-                        ) : null}
-                      </div>
+                    <div className="flex flex-wrap gap-3">
+                      <Button onClick={() => void handleCopyPix()}>
+                        <Copy className="mr-2 h-4 w-4" /> Copiar Pix
+                      </Button>
 
-                      <div className="grid gap-3 md:grid-cols-3">
-                        <div className="rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3">
-                          <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Plano</div>
-                          <div className="mt-2 text-sm font-medium text-slate-100">
-                            {subscription?.platform_plans?.name ?? "Plano selecionado"}
-                          </div>
-                        </div>
-                        <div className="rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3">
-                          <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Documento</div>
-                          <div className="mt-2 text-sm font-medium text-slate-100">
-                            {customerDocument || "Nao informado"}
-                          </div>
-                        </div>
-                        <div className="rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3">
-                          <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Atualizacao</div>
-                          <div className="mt-2 text-sm font-medium text-slate-100">
-                            Automatica a cada 15s
-                          </div>
-                        </div>
-                      </div>
-
-                      {copyFeedback ? (
-                        <div className="rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-200">
-                          {copyFeedback}
-                        </div>
+                      {activeCheckout.invoiceUrl ? (
+                        <>
+                          <Button variant="outline" className="border-slate-700 text-slate-100 hover:bg-slate-800" onClick={() => setIsInvoiceModalOpen(true)}>
+                            Abrir cobrança aqui
+                          </Button>
+                          <a
+                            className="inline-flex items-center rounded-2xl border border-slate-700 px-4 py-3 text-sm font-medium text-slate-100"
+                            href={activeCheckout.invoiceUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            <ExternalLink className="mr-2 h-4 w-4" /> Abrir em nova aba
+                          </a>
+                        </>
                       ) : null}
                     </div>
+
+                    <div className="grid gap-3 md:grid-cols-3">
+                      <div className="rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3">
+                        <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Plano</div>
+                        <div className="mt-2 text-sm font-medium text-slate-100">{subscription?.platform_plans?.name ?? "Plano selecionado"}</div>
+                      </div>
+                      <div className="rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3">
+                        <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Documento</div>
+                        <div className="mt-2 text-sm font-medium text-slate-100">{customerDocument || "Não informado"}</div>
+                      </div>
+                      <div className="rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3">
+                        <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Atualização</div>
+                        <div className="mt-2 text-sm font-medium text-slate-100">Automática a cada 15s</div>
+                      </div>
+                    </div>
+
+                    {copyFeedback ? (
+                      <div className="rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-200">
+                        {copyFeedback}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="mt-6 rounded-xl border border-dashed border-slate-700 px-4 py-8 text-sm text-slate-400">
-                Nenhuma cobranca gerada ainda.
+              <div className="mt-6 rounded-2xl border border-dashed border-slate-700 px-4 py-8 text-sm text-slate-400">
+                Nenhuma cobrança gerada ainda.
               </div>
             )}
           </Card>
-        </section>
-      </div>
+        </div>
+      </PageLayout>
 
       {isInvoiceModalOpen && activeCheckout?.invoiceUrl ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4 py-6 backdrop-blur-sm">
@@ -399,9 +383,7 @@ export function SubscriptionPage() {
             <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
               <div>
                 <div className="text-sm font-medium text-slate-500">Checkout Asaas</div>
-                <div className="text-lg font-semibold text-slate-900">
-                  Finalize seu pagamento sem sair da pagina
-                </div>
+                <div className="text-lg font-semibold text-slate-900">Finalize seu pagamento sem sair da página</div>
               </div>
               <div className="flex items-center gap-3">
                 <a
@@ -418,14 +400,10 @@ export function SubscriptionPage() {
               </div>
             </div>
 
-            <iframe
-              title="Checkout Asaas"
-              src={activeCheckout.invoiceUrl}
-              className="h-full w-full bg-white"
-            />
+            <iframe title="Checkout Asaas" src={activeCheckout.invoiceUrl} className="h-full w-full bg-white" />
           </div>
         </div>
       ) : null}
-    </main>
+    </>
   );
 }

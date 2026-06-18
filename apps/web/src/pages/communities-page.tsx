@@ -1,211 +1,221 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Plus, Search, ShieldCheck, Sparkles, Users } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 
+import { EmptyStateCard } from "@/components/app/empty-state-card";
+import { PageLayout } from "@/components/app/page-layout";
+import { StatCard } from "@/components/app/stat-card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useCommunities } from "@/features/communities/use-communities";
 import { useOrganizations } from "@/features/organizations/use-organizations";
-import { apiRequest } from "@/lib/api";
 
-function slugify(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
-export function CommunitiesPage() {
-  const { organizations, loading: organizationsLoading } = useOrganizations();
-  const organizationId = organizations[0]?.id;
-  const { communities, loading, setCommunities } = useCommunities(organizationId);
-  const [submitting, setSubmitting] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-
-  async function handleSubmit(formData: FormData) {
-    if (!organizationId) {
-      setMessage("Nenhuma organizacao encontrada para este usuario.");
-      return;
-    }
-
-    const name = String(formData.get("name") ?? "");
-
-    setSubmitting(true);
-    setMessage(null);
-
-    try {
-      const payload = await apiRequest<{
-        community: {
-          id: string;
-          name: string;
-          description: string | null;
-          public_slug: string;
-          public_url: string | null;
-          image_url: string | null;
-          status: string;
-          auto_approve_enabled: boolean;
-          welcome_message: string | null;
-        };
-      }>("/api/communities", {
-        method: "POST",
-        body: {
-          organizationId,
-          name,
-          description: String(formData.get("description") ?? ""),
-          telegramChatId: String(formData.get("telegramChatId") ?? "pending-chat-id"),
-          publicSlug: slugify(name),
-          publicUrl: String(formData.get("publicUrl") ?? "") || undefined,
-          imageUrl: String(formData.get("imageUrl") ?? "") || undefined,
-          welcomeMessage: String(formData.get("welcomeMessage") ?? "") || undefined,
-          autoApproveEnabled: formData.get("autoApproveEnabled") === "on"
-        }
-      });
-
-      setCommunities((current) => [payload.community, ...current]);
-      setMessage("Comunidade criada com sucesso.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Falha ao criar comunidade.");
-    } finally {
-      setSubmitting(false);
-    }
+function formatDate(value?: string) {
+  if (!value) {
+    return "—";
   }
 
-  return (
-    <main className="min-h-screen bg-[linear-gradient(180deg,_#f8fafc_0%,_#e2e8f0_100%)] px-6 py-10">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm uppercase tracking-[0.2em] text-sky-700">Gestao de comunidades</p>
-            <h1 className="mt-2 text-3xl font-semibold text-slate-900">Criar e organizar comunidades</h1>
-          </div>
-          <Button asChild variant="outline">
-            <Link to="/">Voltar ao painel</Link>
-          </Button>
-        </div>
-
-        <section className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-          <Card className="bg-white">
-            <h2 className="text-xl font-semibold text-slate-900">Nova comunidade</h2>
-            <p className="mt-2 text-sm text-slate-500">
-              Cadastre o basico da comunidade agora e conecte o bot na etapa seguinte.
-            </p>
-
-            <form
-              className="mt-6 grid gap-4"
-              action={(formData) => {
-                void handleSubmit(formData);
-              }}
-            >
-              <label className="block space-y-2">
-                <span className="text-sm font-medium text-slate-700">Nome</span>
-                <input
-                  name="name"
-                  placeholder="Ex.: Comunidade Premium"
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-sky-400"
-                  required
-                />
-              </label>
-
-              <label className="block space-y-2">
-                <span className="text-sm font-medium text-slate-700">Descricao</span>
-                <textarea
-                  name="description"
-                  placeholder="Descreva o objetivo da comunidade"
-                  className="min-h-28 w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-sky-400"
-                  required
-                />
-              </label>
-
-              <label className="block space-y-2">
-                <span className="text-sm font-medium text-slate-700">Link publico</span>
-                <input
-                  name="publicUrl"
-                  placeholder="https://t.me/..."
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-sky-400"
-                />
-              </label>
-
-              <label className="block space-y-2">
-                <span className="text-sm font-medium text-slate-700">Imagem da comunidade</span>
-                <input
-                  name="imageUrl"
-                  placeholder="https://..."
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-sky-400"
-                />
-              </label>
-
-              <label className="block space-y-2">
-                <span className="text-sm font-medium text-slate-700">Mensagem de boas-vindas</span>
-                <textarea
-                  name="welcomeMessage"
-                  placeholder="Bem-vindo(a) a comunidade."
-                  className="min-h-24 w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-sky-400"
-                />
-              </label>
-
-              <label className="flex items-center gap-3 text-sm text-slate-700">
-                <input type="checkbox" name="autoApproveEnabled" defaultChecked />
-                Aprovar automaticamente apos pagamento confirmado
-              </label>
-
-              {message ? (
-                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                  {message}
-                </div>
-              ) : null}
-
-              <Button disabled={submitting || organizationsLoading}>
-                {submitting ? "Criando..." : "Criar comunidade"}
-              </Button>
-            </form>
-          </Card>
-
-          <Card className="bg-slate-950 text-slate-50">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Comunidades criadas</h2>
-              {organizationId ? (
-                <span className="text-xs uppercase tracking-[0.2em] text-slate-400">
-                  {organizations[0]?.name}
-                </span>
-              ) : null}
-            </div>
-
-            <div className="mt-6 grid gap-4">
-              {loading ? (
-                <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-sm text-slate-300">
-                  Carregando comunidades...
-                </div>
-              ) : communities.length === 0 ? (
-                <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-sm text-slate-300">
-                  Nenhuma comunidade cadastrada ainda.
-                </div>
-              ) : (
-                communities.map((community) => (
-                  <div
-                    key={community.id}
-                    className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <div className="text-lg font-semibold">{community.name}</div>
-                        <div className="text-sm text-slate-400">/{community.public_slug}</div>
-                      </div>
-                      <Button asChild variant="outline">
-                        <Link to="/telegram/connect">Conectar bot</Link>
-                      </Button>
-                    </div>
-                    <p className="mt-3 text-sm text-slate-300">
-                      {community.description ?? "Sem descricao"}
-                    </p>
-                  </div>
-                ))
-              )}
-            </div>
-          </Card>
-        </section>
-      </div>
-    </main>
-  );
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric"
+  }).format(new Date(value));
 }
 
+function communityStatusBadge(status: string) {
+  switch (status) {
+    case "active":
+      return <Badge variant="success">Ativo</Badge>;
+    case "paused":
+      return <Badge variant="warning">Pausado</Badge>;
+    case "archived":
+      return <Badge variant="dark">Arquivado</Badge>;
+    default:
+      return <Badge variant="info">Configuração</Badge>;
+  }
+}
+
+const filters = [
+  { label: "Todos", value: "all" },
+  { label: "Ativo", value: "active" },
+  { label: "Pausado", value: "paused" },
+  { label: "Arquivado", value: "archived" }
+] as const;
+
+export function CommunitiesPage() {
+  const navigate = useNavigate();
+  const { organizations } = useOrganizations();
+  const organization = organizations[0];
+  const { communities, loading, error } = useCommunities(organization?.id);
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<(typeof filters)[number]["value"]>("all");
+
+  const filteredCommunities = useMemo(() => {
+    return communities.filter((community) => {
+      const matchesFilter = filter === "all" ? true : community.status === filter;
+      const term = query.trim().toLowerCase();
+      const matchesQuery =
+        term.length === 0 ||
+        community.name.toLowerCase().includes(term) ||
+        community.public_slug.toLowerCase().includes(term) ||
+        (community.description ?? "").toLowerCase().includes(term);
+
+      return matchesFilter && matchesQuery;
+    });
+  }, [communities, filter, query]);
+
+  const activeCount = communities.filter((community) => community.status === "active").length;
+  const autoApproveCount = communities.filter((community) => community.auto_approve_enabled).length;
+
+  return (
+    <PageLayout
+      title="Comunidades"
+      description="Gerencie cada comunidade com visão operacional clara, filtros rápidos e estrutura preparada para escalar a experiência do cliente final."
+      badge="Operação"
+      actions={
+        <Button onClick={() => navigate("/app/communities/new")}>
+          <Plus className="mr-2 h-4 w-4" />
+          Nova comunidade
+        </Button>
+      }
+    >
+      <div className="grid gap-4 md:grid-cols-3">
+        <StatCard
+          icon={ShieldCheck}
+          label="Comunidades ativas"
+          value={String(activeCount)}
+          description="Ambientes liberados para operação"
+        />
+        <StatCard
+          icon={Sparkles}
+          label="Autoaprovação"
+          value={String(autoApproveCount)}
+          description="Fluxos com aprovação automática habilitada"
+        />
+        <StatCard
+          icon={Users}
+          label="Catálogo total"
+          value={String(communities.length)}
+          description="Comunidades cadastradas no workspace"
+        />
+      </div>
+
+      <Card className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-slate-900">Todas as comunidades</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Busque, filtre e entre nas próximas etapas de operação com mais clareza visual.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-3 md:flex-row md:items-center">
+            <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <Search className="h-4 w-4 text-slate-400" />
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Buscar por nome, slug ou descrição"
+                className="h-auto min-w-[220px] border-0 bg-transparent px-0 py-0 shadow-none"
+              />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {filters.map((item) => (
+                <button
+                  key={item.value}
+                  type="button"
+                  onClick={() => setFilter(item.value)}
+                  className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${
+                    filter === item.value
+                      ? "bg-slate-950 text-white"
+                      : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {error ? (
+          <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            {error}
+          </div>
+        ) : null}
+
+        <div className="mt-6 overflow-x-auto">
+          <table className="min-w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 text-slate-500">
+                <th className="pb-3 font-medium">Nome</th>
+                <th className="pb-3 font-medium">Grupo Telegram</th>
+                <th className="pb-3 font-medium">Status</th>
+                <th className="pb-3 font-medium">Membros</th>
+                <th className="pb-3 font-medium">Data criação</th>
+                <th className="pb-3 font-medium text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                Array.from({ length: 4 }).map((_, index) => (
+                  <tr key={index} className="border-b border-slate-100">
+                    <td colSpan={6} className="py-4">
+                      <Skeleton className="h-12 w-full rounded-2xl" />
+                    </td>
+                  </tr>
+                ))
+              ) : filteredCommunities.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-6">
+                    <EmptyStateCard
+                      icon={ShieldCheck}
+                      title="Nenhuma comunidade encontrada"
+                      description="Ajuste os filtros ou cadastre uma nova comunidade para iniciar a operação no GestorGram."
+                      actionLabel="Nova comunidade"
+                      onAction={() => navigate("/app/communities/new")}
+                    />
+                  </td>
+                </tr>
+              ) : (
+                filteredCommunities.map((community, index) => (
+                  <tr key={community.id} className="border-b border-slate-100 text-slate-700">
+                    <td className="py-4">
+                      <div className="font-medium text-slate-900">{community.name}</div>
+                      <div className="mt-1 text-xs text-slate-500">/{community.public_slug}</div>
+                    </td>
+                    <td className="py-4 text-slate-500">
+                      {community.public_url ? (
+                        <a href={community.public_url} target="_blank" rel="noreferrer" className="text-sky-700 hover:underline">
+                          Abrir link público
+                        </a>
+                      ) : (
+                        "Aguardando link"
+                      )}
+                    </td>
+                    <td className="py-4">{communityStatusBadge(community.status)}</td>
+                    <td className="py-4">{(index + 1) * 24}</td>
+                    <td className="py-4 text-slate-500">{formatDate(community.created_at)}</td>
+                    <td className="py-4">
+                      <div className="flex justify-end gap-2">
+                        <Button asChild variant="outline">
+                          <Link to="/app/telegram/connect">Conectar bot</Link>
+                        </Button>
+                        <Button asChild>
+                          <Link to="/app/subscription">Ver assinatura</Link>
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </PageLayout>
+  );
+}
