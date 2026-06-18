@@ -128,7 +128,12 @@ export const appNavigation: AppNavItem[] = [
       { title: "Perfil", href: "/app/settings/profile", icon: Settings },
       { title: "Segurança", href: "/app/settings/security", icon: Lock },
       { title: "Preferências", href: "/app/settings/preferences", icon: LifeBuoy },
-      { title: "Logs", href: "/app/audit-logs", icon: MessageSquareText }
+      {
+        title: "Logs",
+        href: "/app/audit-logs",
+        icon: MessageSquareText,
+        hideForSuperAdmin: true
+      }
     ]
   }
 ];

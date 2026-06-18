@@ -137,6 +137,9 @@ export function AdminPlansPage() {
   const [mode, setMode] = useState<"create" | "edit">("create");
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [messageTone, setMessageTone] = useState<"success" | "error">("success");
+  const [pendingActionPlanId, setPendingActionPlanId] = useState<string | null>(null);
+  const [pendingActionLabel, setPendingActionLabel] = useState<string | null>(null);
 
   const selectedPlan = useMemo(
     () => plans.find((plan) => plan.id === selectedPlanId) ?? null,
@@ -148,6 +151,7 @@ export function AdminPlansPage() {
     setSelectedPlanId(null);
     setForm(emptyForm);
     setMessage(null);
+    setMessageTone("success");
   }
 
   function handleEditMode(plan: AdminPlatformPlan) {
@@ -155,6 +159,7 @@ export function AdminPlansPage() {
     setSelectedPlanId(plan.id);
     setForm(toFormState(plan));
     setMessage(null);
+    setMessageTone("success");
   }
 
   function updateField<K extends keyof PlanFormState>(field: K, value: PlanFormState[K]) {
@@ -164,6 +169,7 @@ export function AdminPlansPage() {
   async function handleSave() {
     setSubmitting(true);
     setMessage(null);
+    setMessageTone("success");
 
     try {
       const payload = {
@@ -200,6 +206,7 @@ export function AdminPlansPage() {
 
       await refresh();
     } catch (nextError) {
+      setMessageTone("error");
       setMessage(
         nextError instanceof Error
           ? nextError.message
@@ -211,38 +218,74 @@ export function AdminPlansPage() {
   }
 
   async function handleArchive(planId: string) {
+    const confirmed = window.confirm(
+      "Arquivar este plano vai removê-lo do checkout público, mas preservará o histórico. Deseja continuar?"
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
     setSubmitting(true);
     setMessage(null);
+    setMessageTone("success");
+    setPendingActionPlanId(planId);
+    setPendingActionLabel("Arquivando...");
 
     try {
       await apiRequest(`/api/admin/platform-plans/${planId}/archive`, { method: "POST" });
       setMessage("Plano arquivado com sucesso.");
+      if (selectedPlanId === planId) {
+        setMode("create");
+        setSelectedPlanId(null);
+        setForm(emptyForm);
+      }
       await refresh();
     } catch (nextError) {
+      setMessageTone("error");
       setMessage(nextError instanceof Error ? nextError.message : "Falha ao arquivar o plano.");
     } finally {
       setSubmitting(false);
+      setPendingActionPlanId(null);
+      setPendingActionLabel(null);
     }
   }
 
   async function handleRestore(planId: string) {
     setSubmitting(true);
     setMessage(null);
+    setMessageTone("success");
+    setPendingActionPlanId(planId);
+    setPendingActionLabel("Restaurando...");
 
     try {
       await apiRequest(`/api/admin/platform-plans/${planId}/restore`, { method: "POST" });
       setMessage("Plano restaurado com sucesso.");
       await refresh();
     } catch (nextError) {
+      setMessageTone("error");
       setMessage(nextError instanceof Error ? nextError.message : "Falha ao restaurar o plano.");
     } finally {
       setSubmitting(false);
+      setPendingActionPlanId(null);
+      setPendingActionLabel(null);
     }
   }
 
   async function handleDelete(planId: string) {
+    const confirmed = window.confirm(
+      "Remover um plano apaga o cadastro se ele não estiver vinculado a assinaturas. Se houver histórico, o plano será arquivado. Deseja continuar?"
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
     setSubmitting(true);
     setMessage(null);
+    setMessageTone("success");
+    setPendingActionPlanId(planId);
+    setPendingActionLabel("Removendo...");
 
     try {
       const payload = await apiRequest<{ message: string }>(
@@ -250,11 +293,19 @@ export function AdminPlansPage() {
         { method: "DELETE" as never }
       );
       setMessage(payload.message);
+      if (selectedPlanId === planId) {
+        setMode("create");
+        setSelectedPlanId(null);
+        setForm(emptyForm);
+      }
       await refresh();
     } catch (nextError) {
+      setMessageTone("error");
       setMessage(nextError instanceof Error ? nextError.message : "Falha ao remover o plano.");
     } finally {
       setSubmitting(false);
+      setPendingActionPlanId(null);
+      setPendingActionLabel(null);
     }
   }
 
@@ -314,6 +365,17 @@ export function AdminPlansPage() {
           </div>
 
           <div className="mt-6 overflow-x-auto">
+            {message ? (
+              <div
+                className={`mb-4 rounded-2xl border px-4 py-3 text-sm ${
+                  messageTone === "success"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : "border-rose-200 bg-rose-50 text-rose-700"
+                }`}
+              >
+                {message}
+              </div>
+            ) : null}
             <table className="min-w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-slate-500">
@@ -377,19 +439,40 @@ export function AdminPlansPage() {
                             Editar
                           </Button>
                           {plan.status !== "archived" ? (
-                            <Button variant="outline" onClick={() => void handleArchive(plan.id)}>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              disabled={submitting && pendingActionPlanId === plan.id}
+                              onClick={() => void handleArchive(plan.id)}
+                            >
                               <Archive className="mr-2 h-4 w-4" />
-                              Arquivar
+                              {submitting && pendingActionPlanId === plan.id && pendingActionLabel
+                                ? pendingActionLabel
+                                : "Arquivar"}
                             </Button>
                           ) : (
-                            <Button variant="outline" onClick={() => void handleRestore(plan.id)}>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              disabled={submitting && pendingActionPlanId === plan.id}
+                              onClick={() => void handleRestore(plan.id)}
+                            >
                               <RotateCcw className="mr-2 h-4 w-4" />
-                              Restaurar
+                              {submitting && pendingActionPlanId === plan.id && pendingActionLabel
+                                ? pendingActionLabel
+                                : "Restaurar"}
                             </Button>
                           )}
-                          <Button variant="outline" onClick={() => void handleDelete(plan.id)}>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={submitting && pendingActionPlanId === plan.id}
+                            onClick={() => void handleDelete(plan.id)}
+                          >
                             <Trash2 className="mr-2 h-4 w-4" />
-                            Remover
+                            {submitting && pendingActionPlanId === plan.id && pendingActionLabel
+                              ? pendingActionLabel
+                              : "Remover"}
                           </Button>
                         </div>
                       </td>
@@ -568,7 +651,13 @@ export function AdminPlansPage() {
             </div>
 
             {message ? (
-              <div className="rounded-2xl border border-slate-800 bg-slate-950 px-4 py-3 text-sm text-slate-300">
+              <div
+                className={`rounded-2xl border px-4 py-3 text-sm ${
+                  messageTone === "success"
+                    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100"
+                    : "border-rose-500/30 bg-rose-500/10 text-rose-100"
+                }`}
+              >
                 {message}
               </div>
             ) : null}
