@@ -1,247 +1,235 @@
-# Gestor de Comunidades Telegram
+# GestorGram
 
-SaaS multi-tenant para donos de comunidades Telegram. O cliente assina a plataforma, libera o painel via Asaas, conecta o bot ao grupo e gerencia moderacao, automacoes e operacao da comunidade.
+SaaS multi-tenant para donos de comunidades Telegram. O cliente assina a plataforma, libera o painel via Asaas, conecta o bot ao grupo e passa a operar comunidades, grupos e automações em um painel único.
 
-## Documentacao complementar
+## Documentação complementar
 
-- Manual operacional: `manual de uso.md`
+- Operação técnica e deploy: `manual de uso.md`
+- Manual do cliente final: `manual de uso pro cliente final.md`
 
-## Regra de negocio atual
+## Regra de negócio atual
 
-O fluxo principal do MVP e:
+O fluxo principal do produto é:
 
-1. O dono da comunidade cria conta.
-2. O sistema cria a `organization` em `pending_payment`.
-3. O cliente escolhe um `platform_plan`.
-4. O backend gera cobranca Pix da assinatura do SaaS via Asaas da plataforma.
-5. O webhook confirma o pagamento.
-6. A `organization` e a `organization_subscription` ficam `active`.
-7. O painel e liberado.
-8. O cliente conecta o bot Telegram e passa a operar a comunidade.
+1. o usuário cria conta e faz login
+2. o sistema cria a `organization` em `pending_payment`
+3. o cliente escolhe um plano SaaS da plataforma
+4. o backend gera a cobrança Pix via Asaas
+5. o webhook confirma o pagamento
+6. a `organization` e a `organization_subscription` ficam `active`
+7. o painel é liberado
+8. o cliente conecta o bot Telegram e gerencia a comunidade
 
-O modulo futuro de cobranca dos membros da comunidade continua preparado na arquitetura, mas nao e mais o fluxo principal do MVP.
+Importante:
 
-## Arquitetura proposta
+- o produto **não** está usando como fluxo principal a cobrança de membros da comunidade
+- cobrança de membros continua como módulo futuro
 
-### Contextos principais
+## Arquitetura atual
 
-- `apps/web`: painel admin e checkout publico em React + Vite + Tailwind + componentes no padrao Shadcn UI.
-- `apps/api`: API Node.js com Fastify, modulos de dominio, webhooks e servicos de integracao.
-- `packages/shared`: contratos compartilhados entre frontend e backend.
-- `supabase`: migrations SQL, seeds e artefatos de banco para PostgreSQL/Supabase.
+### Stack
 
-### Principios de desenho
+- Frontend: React + TypeScript + Vite
+- UI: TailwindCSS + componentes próprios em estilo Shadcn
+- Backend: Fastify + Node.js
+- Banco/Auth: Supabase/PostgreSQL
+- Pagamentos: Asaas
+- Bot: Telegram Bot API
 
-- Multi-tenant por `organization_id` em todas as entidades de negocio.
-- Integracoes externas isoladas em `services`.
-- Fluxos assincronos orientados a eventos: webhook do Asaas confirma pagamento e dispara automacoes do Telegram.
-- Idempotencia por `webhook_events.provider_event_id`.
-- Preparado para evoluir de Pix unico para boleto, cartao e assinaturas recorrentes sem reescrever o core.
-
-### Fluxo principal do MVP
-
-1. Admin cria conta e organizacao.
-2. Escolhe um plano SaaS.
-3. Gera Pix de assinatura via Asaas da plataforma.
-4. Webhook confirma o pagamento e ativa a organizacao.
-5. Cliente conecta o bot Telegram.
-6. Cliente gerencia comunidade, grupos e automacoes.
-
-## Estado atual da implementacao
-
-- Auth real via Supabase no frontend com login, cadastro e sessao persistida.
-- Bootstrap automatico do primeiro tenant apos cadastro do admin.
-- API autenticada com token Bearer do Supabase para identificar o usuario.
-- Persistencia real de `users`, `organizations`, `organization_users`, `communities` e `plans`.
-- Camada de billing SaaS com `platform_plans`, `organization_subscriptions` e `organization_payments`.
-- Script para promover usuarios a `super_admin` via `app_metadata`.
-- Guardas de frontend para bloquear o painel quando a organizacao nao estiver `active`.
-- Fluxo de Telegram por bot com validacao de token, registro de grupo e mensagem de teste.
-
-## Deploy recomendado atual
-
-- Frontend: Cloudflare Pages apontando para `apps/web`.
-- Backend: Render Web Service usando `render.yaml`.
-- Banco e Auth: Supabase.
-
-### Cloudflare Pages
-
-- Framework preset: `Vite`.
-- Root directory: `apps/web`.
-- Build command: `npm install && npm run build`.
-- Build output directory: `dist`.
-- Variaveis obrigatorias:
-  - `VITE_API_URL=https://<seu-backend-render>.onrender.com`
-  - `VITE_SUPABASE_URL=https://exuffrthxjvnankwzcqh.supabase.co`
-  - `VITE_SUPABASE_ANON_KEY=<sua-anon-key>`
-- O arquivo `apps/web/public/_redirects` ja foi adicionado para o SPA fallback do React Router.
-
-### Render
-
-- O arquivo `render.yaml` ja descreve o servico do backend.
-- Se preferir configurar manualmente no painel:
-  - Service type: `Web Service`
-  - Runtime: `Node`
-  - Root directory: `.`
-  - Build command: `npm install && npm run build -w @gestor/api`
-  - Start command: `npm run start -w @gestor/api`
-  - Health check path: `/health`
-- Variaveis obrigatorias:
-  - `APP_URL=https://<seu-projeto>.pages.dev`
-  - `APP_URLS=https://<seu-projeto>.pages.dev,https://<dominio-custom>`
-  - `DATABASE_URL=<connection-string-se-voce-for-usar>`
-  - `SUPABASE_URL=https://exuffrthxjvnankwzcqh.supabase.co`
-  - `SUPABASE_ANON_KEY=<sua-anon-key>`
-  - `SUPABASE_SERVICE_ROLE_KEY=<sua-service-role>`
-  - `JWT_SECRET=<segredo-forte>`
-  - `ASAAS_BASE_URL=https://api-sandbox.asaas.com/v3`
-  - `ASAAS_API_KEY=<sua-chave-asaas>`
-  - `ASAAS_WEBHOOK_TOKEN=<token-webhook-asaas>`
-  - `TELEGRAM_BOT_TOKEN=<token-bot>`
-  - `TELEGRAM_WEBHOOK_SECRET=<segredo-webhook-telegram>`
-
-### Ordem de publicacao
-
-1. Aplicar `supabase/migrations/0001_initial_schema.sql` no projeto Supabase.
-2. Publicar a API no Render e copiar a URL publica.
-3. Configurar `VITE_API_URL` no Cloudflare Pages com a URL do Render.
-4. Publicar o frontend no Cloudflare Pages.
-5. Atualizar `APP_URL` e `APP_URLS` no Render com a URL final do Pages.
-6. Configurar webhooks do Asaas e do Telegram apontando para o backend publicado.
-
-## Riscos tecnicos
-
-- Permissoes do Telegram: o bot precisa estar como administrador com permissao para aprovar/restringir membros.
-- Confiabilidade de webhook: duplicidade, atraso ou entrega fora de ordem exigem idempotencia e reconciliacao.
-- Convites e aprovacoes: links do Telegram podem expirar ou ser usados fora da janela esperada; isso exige rastreio por `invite_links`.
-- Inadimplencia automatica: remover membro sem considerar feriados, grace period e falhas de webhook gera suporte manual.
-- Multi-tenant e seguranca: qualquer consulta sem `organization_id` pode vazar dados entre admins.
-- Checkout publico: CPF/CNPJ, email e telefone precisam validacao minima e auditoria.
-- Operacao em VPS/Vercel: webhook do Telegram e Asaas exige endpoint publico HTTPS e observabilidade.
-
-## Estrutura de pastas
+### Estrutura
 
 ```text
 .
 |-- apps
 |   |-- api
-|   |   |-- src
-|   |   |   |-- config
-|   |   |   |-- lib
-|   |   |   |-- modules
-|   |   |   |-- routes
-|   |   |   `-- services
-|   |   `-- package.json
+|   |   `-- src
+|   |       |-- config
+|   |       |-- lib
+|   |       |-- modules
+|   |       `-- services
 |   `-- web
-|       |-- src
-|       |   |-- components
-|       |   |-- features
-|       |   |-- lib
-|       |   |-- pages
-|       |   `-- styles
-|       `-- package.json
+|       `-- src
+|           |-- components
+|           |-- features
+|           |-- lib
+|           `-- pages
 |-- packages
 |   `-- shared
+|-- render.yaml
 |-- supabase
 |   `-- migrations
-`-- README.md
+|-- README.md
+|-- manual de uso.md
+`-- manual de uso pro cliente final.md
 ```
 
-## Schema inicial do banco
+## Experiência atual do produto
 
-### Tabelas centrais
+### Público
 
-- `users`: identidade do admin.
-- `organizations`: tenant principal.
-- `organization_users`: vinculo N:N entre usuario e tenant.
-- `platform_plans`: planos do SaaS.
-- `organization_subscriptions`: assinatura do cliente para usar a plataforma.
-- `organization_payments`: pagamentos da assinatura SaaS.
-- `communities`: configuracao funcional e comercial da comunidade do cliente.
-- `telegram_bots`: bot conectado por organization.
-- `telegram_groups`: grupos/canais vinculados por organization.
-- `plans`: preparado para community plans futuros.
-- `members`, `payments`, `subscriptions`, `invite_links`: base para modulo futuro de cobranca de membros.
-- `webhook_events`: auditoria e idempotencia.
-- `bot_logs`: rastreio de acoes de automacao.
-- `automations`: regras parametrizadas por comunidade.
+- `/`: landing pública
+- `/auth`: login e cadastro
+- `/c/:slug`: checkout público de comunidade
 
-### Decisoes de modelagem
+### Tenant
 
-- `members` guarda o estado consolidado do acesso.
-- `payments` guarda eventos financeiros unitarios, inclusive Pix.
-- `subscriptions` fica opcional no MVP, mas ja prevista.
-- `webhook_events` armazena payload bruto para auditoria.
-
-## Roadmap incremental
-
-### Fase 1
-
-- Monorepo, auth base, schema SQL e API de health.
-- Cadastro de organizacao/comunidade/plano.
-- Checkout publico Pix.
-- Webhook Asaas com idempotencia.
-- Liberacao de membro e convite Telegram.
-
-### Fase 2
-
-- Dashboard com metricas reais.
-- Avisos de vencimento e remocao automatica.
-- Boleto, cartao e assinaturas.
-- RLS no Supabase e observabilidade.
-
-## Ambiente
-
-Copie `apps/api/.env.example` para `apps/api/.env` e `apps/web/.env.example` para `apps/web/.env`.
-
-### Supabase conectado
-
-- `apps/web/.env` ja foi preenchido com a `SUPABASE_URL` e a `anon key` informadas por voce.
-- `apps/api/.env` ja foi preenchido com `SUPABASE_URL`, `SUPABASE_ANON_KEY` e `SUPABASE_SERVICE_ROLE_KEY`.
-- O frontend usa Supabase Auth para login e cadastro do admin.
-- O backend usa Supabase Admin em `apps/api/src/lib/supabase.ts` para persistencia segura server-side.
-- Se a confirmacao de email estiver ativa no projeto Supabase, o login so funciona apos confirmar o email.
-- A migration `supabase/migrations/0001_initial_schema.sql` precisa estar aplicada no projeto Supabase para os endpoints persistentes funcionarem corretamente.
+- `/app`: redireciona conforme status
+- `/app/dashboard`: visão executiva do workspace
+- `/app/communities`
+- `/app/communities/new`
+- `/app/telegram/connect`
+- `/app/telegram/groups`
+- `/app/telegram/logs`
+- `/app/subscription`
+- `/app/subscription/history`
 
 ### Super admin
 
-- O projeto reconhece `super_admin` via `app_metadata` no Supabase Auth.
-- O script `npm run set:super-admin -- <user-id>` promove um usuario para `app_metadata.role = "super_admin"` e `app_metadata.is_super_admin = true`.
-- O backend expoe esse papel em `apps/api/src/lib/auth.ts`.
+- `/app/admin/dashboard`
+- `/app/admin/plans`
+- `/app/admin/users`
+- `/app/admin/organizations`
 
-### Seguranca
+## Guards e redirecionamentos
 
-- Nunca exponha `SUPABASE_SERVICE_ROLE_KEY` no frontend.
-- Como a `service role` foi compartilhada durante a configuracao, o recomendado e rotaciona-la no painel do Supabase apos concluir o setup inicial.
-- Mantenha chaves do Asaas e do Telegram apenas em variaveis de ambiente server-side.
+Regras centralizadas no frontend:
 
-## Endpoints atuais
+- super admin entra pelo login normal e cai em `/app/admin/dashboard`
+- super admin não usa a área `/app/subscription`
+- tenant `pending_payment` vai para `/app/subscription`
+- tenant `overdue`, `suspended` ou `cancelled` também vai para `/app/subscription`
+- tenant `active` acessa o painel normalmente
+- rotas Telegram exigem organização ativa no backend
+
+## Estados de assinatura
+
+- `pending_payment`: aguardando confirmação
+- `active`: operação liberada
+- `overdue`: pagamento vencido, precisa regularizar
+- `suspended`: uso bloqueado até nova cobrança
+- `cancelled`: assinatura cancelada, precisa reativar
+
+## O que já está implementado
+
+- autenticação Supabase Auth
+- bootstrap da organização principal
+- shell SaaS com sidebar, header e navegação separada
+- área de super admin separada
+- billing SaaS da plataforma
+- checkout Pix via Asaas
+- histórico de pagamentos da assinatura
+- webhook Asaas idempotente
+- health check mais robusto
+- validação do bot Telegram com `getMe`
+- cadastro de grupos conectados
+- envio de mensagem teste
+- logs operacionais do bot
+- guards centralizados para tenant e super admin
+- lazy loading das rotas privadas e administrativas
+
+## Endpoints principais
+
+### Sistema
 
 - `GET /health`
+
+### Auth e organização
+
 - `GET /api/auth/me`
 - `POST /api/auth/bootstrap`
+- `GET /api/organizations`
+
+### Billing SaaS
+
 - `GET /api/platform-plans`
 - `POST /api/billing/checkout/pix`
-- `GET /api/billing/subscription`
 - `POST /api/billing/reactivate`
-- `GET /api/organizations`
+- `GET /api/billing/subscription?organizationId=<uuid>`
+- `GET /api/billing/history?organizationId=<uuid>`
+
+### Comunidades
+
 - `POST /api/communities`
 - `GET /api/communities?organizationId=<uuid>`
-- `POST /api/plans`
-- `GET /api/plans?organizationId=<uuid>&communityId=<uuid>`
+
+### Telegram
+
 - `POST /api/telegram/bot/connect`
-- `GET /api/telegram/bot/status`
+- `GET /api/telegram/bot/status?organizationId=<uuid>`
 - `POST /api/telegram/test-message`
 - `POST /api/telegram/groups`
 - `GET /api/telegram/groups?organizationId=<uuid>`
+- `GET /api/telegram/logs?organizationId=<uuid>`
+
+### Admin global
+
+- `GET /api/admin/users`
+- `GET /api/admin/organizations`
+
+### Público
+
+- `POST /api/public/checkout/pix`
 - `POST /api/webhooks/asaas`
 
-## Comandos
+## Segurança
+
+- `SUPABASE_SERVICE_ROLE_KEY` fica somente no backend
+- `ASAAS_API_KEY` fica somente no backend
+- token do bot não volta a ser exibido no frontend depois de salvo
+- endpoints privados exigem `Authorization: Bearer <token>`
+- webhook do Asaas continua idempotente via `webhook_events`
+- erros em produção não expõem stack trace
+- validação de env falha com mensagem clara
+
+## Health check
+
+`GET /health` agora retorna:
+
+- `status`
+- `service`
+- `env`
+- `uptimeSeconds`
+- `timestamp`
+- `app.allowedOrigins`
+- `integrations.supabase`
+- `integrations.asaas`
+- `integrations.telegram`
+
+## Build e validação
+
+Comandos:
 
 ```bash
 npm install
-npm run dev
 npm run check
 npm run build
+```
+
+Status atual:
+
+- `npm run check`: ok
+- `npm run build`: ok
+
+## Deploy recomendado
+
+- Frontend: Cloudflare Pages apontando para `apps/web`
+- Backend: Render apontando para o monorepo com build do workspace `@gestor/api`
+- Banco/Auth: Supabase
+
+## Super admin
+
+Para promover um usuário:
+
+```bash
 npm run set:super-admin -- <user-id>
 ```
+
+Esse script define:
+
+- `app_metadata.role = "super_admin"`
+- `app_metadata.is_super_admin = true`
+
+## Observações finais
+
+- o produto já está com fluxo coerente para venda: cadastro → assinatura → pagamento → painel liberado → conectar bot → operar comunidade
+- analytics avançados e cobrança de membros continuam como evolução futura

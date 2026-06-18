@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from "fastify";
 
+import { adminRoutes } from "../modules/admin/admin-routes.js";
 import { authRoutes } from "../modules/auth/auth-routes.js";
 import { billingRoutes } from "../modules/billing/billing-routes.js";
 import { checkoutRoutes } from "../modules/checkout/checkout-routes.js";
@@ -21,5 +22,6 @@ export const appRoutes: FastifyPluginAsync = async (app) => {
   await app.register(planRoutes, { prefix: "/api" });
   await app.register(telegramRoutes, { prefix: "/api" });
   await app.register(checkoutRoutes, { prefix: "/api" });
+  await app.register(adminRoutes, { prefix: "/api" });
   await app.register(webhookRoutes, { prefix: "/api" });
 };

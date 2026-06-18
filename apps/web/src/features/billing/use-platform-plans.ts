@@ -17,6 +17,7 @@ export type PlatformPlan = {
 export function usePlatformPlans() {
   const [plans, setPlans] = useState<PlatformPlan[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -25,6 +26,12 @@ export function usePlatformPlans() {
       .then((payload) => {
         if (active) {
           setPlans(payload.plans);
+          setError(null);
+        }
+      })
+      .catch((nextError: Error) => {
+        if (active) {
+          setError(nextError.message);
         }
       })
       .finally(() => {
@@ -40,7 +47,7 @@ export function usePlatformPlans() {
 
   return {
     plans,
-    loading
+    loading,
+    error
   };
 }
-

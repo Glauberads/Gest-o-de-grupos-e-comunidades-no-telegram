@@ -5,6 +5,7 @@ import { PageLayout } from "@/components/app/page-layout";
 import { StatCard } from "@/components/app/stat-card";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { usePlatformPlans } from "@/features/billing/use-platform-plans";
 
 function formatCurrency(value: number) {
@@ -15,7 +16,7 @@ function formatCurrency(value: number) {
 }
 
 export function AdminPlansPage() {
-  const { plans, loading } = usePlatformPlans();
+  const { plans, loading, error } = usePlatformPlans();
 
   return (
     <PageLayout
@@ -68,9 +69,31 @@ export function AdminPlansPage() {
             </thead>
             <tbody>
               {loading ? (
+                Array.from({ length: 4 }).map((_, index) => (
+                  <tr key={index}>
+                    <td colSpan={5} className="py-4">
+                      <Skeleton className="h-12 w-full rounded-2xl" />
+                    </td>
+                  </tr>
+                ))
+              ) : error ? (
                 <tr>
-                  <td colSpan={5} className="py-6 text-slate-500">
-                    Carregando planos...
+                  <td colSpan={5} className="py-6">
+                    <EmptyStateCard
+                      icon={CreditCard}
+                      title="Não foi possível carregar os planos"
+                      description={error}
+                    />
+                  </td>
+                </tr>
+              ) : plans.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-6">
+                    <EmptyStateCard
+                      icon={Layers3}
+                      title="Nenhum plano encontrado"
+                      description="Quando o catálogo SaaS estiver populado, os planos aparecerão aqui."
+                    />
                   </td>
                 </tr>
               ) : (

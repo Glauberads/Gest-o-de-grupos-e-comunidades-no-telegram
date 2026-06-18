@@ -8,6 +8,12 @@ type RequestOptions = {
 };
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}) {
+  if (!apiUrl) {
+    throw new Error(
+      "VITE_API_URL não está configurada no frontend. Atualize as variáveis do projeto antes de continuar."
+    );
+  }
+
   const {
     data: { session }
   } = await supabase.auth.getSession();
@@ -26,11 +32,11 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}) 
     body: options.body ? JSON.stringify(options.body) : undefined
   });
 
+  const payload = await response.json().catch(() => null);
+
   if (!response.ok) {
-    const payload = await response.json().catch(() => null);
-    throw new Error(payload?.message ?? "Request failed");
+    throw new Error(payload?.message ?? "Não foi possível concluir a solicitação agora.");
   }
 
-  return response.json() as Promise<T>;
+  return payload as T;
 }
-

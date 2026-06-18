@@ -1,12 +1,15 @@
 import { Building2, CreditCard, ShieldCheck, Users, Wallet, Workflow } from "lucide-react";
 
+import { EmptyStateCard } from "@/components/app/empty-state-card";
 import { PageLayout } from "@/components/app/page-layout";
 import { StatCard } from "@/components/app/stat-card";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useAdminOrganizations } from "@/features/admin/use-admin-organizations";
+import { useAdminUsers } from "@/features/admin/use-admin-users";
 import { useAuth } from "@/features/auth/use-auth";
 import { usePlatformPlans } from "@/features/billing/use-platform-plans";
-import { useOrganizations } from "@/features/organizations/use-organizations";
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("pt-BR", {
@@ -17,8 +20,14 @@ function formatCurrency(value: number) {
 
 export function AdminPlatformDashboardPage() {
   const { session } = useAuth();
-  const { organizations } = useOrganizations();
-  const { plans, loading } = usePlatformPlans();
+  const isSuperAdmin = session?.user.app_metadata?.is_super_admin === true;
+  const { plans, loading, error: plansError } = usePlatformPlans();
+  const {
+    organizations,
+    loading: organizationsLoading,
+    error: organizationsError
+  } = useAdminOrganizations(isSuperAdmin);
+  const { users, loading: usersLoading, error: usersError } = useAdminUsers(isSuperAdmin);
 
   const activePlans = plans.filter((plan) => plan.status === "active").length;
   const cheapestPlan = plans.length > 0 ? Math.min(...plans.map((plan) => plan.price_cents)) : 0;
@@ -26,6 +35,8 @@ export function AdminPlatformDashboardPage() {
     (session?.user.user_metadata.full_name as string | undefined) ??
     session?.user.email ??
     "Super admin";
+  const isLoading = loading || organizationsLoading || usersLoading;
+  const hasError = plansError || organizationsError || usersError;
 
   return (
     <PageLayout
@@ -35,31 +46,49 @@ export function AdminPlatformDashboardPage() {
       badgeVariant="warning"
     >
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          icon={Building2}
-          label="Organizações visíveis"
-          value={String(organizations.length)}
-          description="Tenants sob seu contexto atual"
-        />
-        <StatCard
-          icon={CreditCard}
-          label="Planos SaaS"
-          value={String(plans.length)}
-          description="Catálogo disponível na plataforma"
-        />
-        <StatCard
-          icon={ShieldCheck}
-          label="Planos ativos"
-          value={String(activePlans)}
-          description="Oferta atualmente habilitada"
-        />
-        <StatCard
-          icon={Wallet}
-          label="Ticket inicial"
-          value={cheapestPlan ? formatCurrency(cheapestPlan) : "R$ 0,00"}
-          description="Menor plano ativo disponível"
-        />
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, index) => (
+            <Card key={index} className="rounded-[28px] border border-slate-200 bg-white p-5">
+              <Skeleton className="h-24 w-full rounded-2xl" />
+            </Card>
+          ))
+        ) : (
+          <>
+            <StatCard
+              icon={Building2}
+              label="Organizações"
+              value={String(organizations.length)}
+              description="Tenants visíveis no escopo global"
+            />
+            <StatCard
+              icon={Users}
+              label="Usuários"
+              value={String(users.length)}
+              description="Contas carregadas no backend"
+            />
+            <StatCard
+              icon={CreditCard}
+              label="Planos ativos"
+              value={String(activePlans)}
+              description="Oferta SaaS atualmente habilitada"
+            />
+            <StatCard
+              icon={Wallet}
+              label="Ticket inicial"
+              value={cheapestPlan ? formatCurrency(cheapestPlan) : "R$ 0,00"}
+              description="Menor plano ativo disponível"
+            />
+          </>
+        )}
       </div>
+
+      {hasError ? (
+        <EmptyStateCard
+          icon={ShieldCheck}
+          title="A visão global não carregou por completo"
+          description={hasError}
+        />
+      ) : null}
 
       <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
         <Card className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
@@ -128,7 +157,9 @@ export function AdminPlatformDashboardPage() {
             </div>
             <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
               <div className="text-sm text-slate-300">
-                {loading ? "Carregando catálogo..." : `${plans.length} plano(s) disponíveis para gestão administrativa.`}
+                {isLoading
+                  ? "Carregando visão global..."
+                  : `${plans.length} plano(s), ${organizations.length} organização(ões) e ${users.length} usuário(s) visíveis para gestão administrativa.`}
               </div>
             </div>
           </div>

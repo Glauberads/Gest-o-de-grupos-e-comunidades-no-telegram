@@ -6,9 +6,12 @@ export function useBillingSubscription(organizationId?: string) {
   const [subscription, setSubscription] = useState<any>(null);
   const [latestPayment, setLatestPayment] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!organizationId) {
+      setSubscription(null);
+      setLatestPayment(null);
       setLoading(false);
       return;
     }
@@ -17,16 +20,29 @@ export function useBillingSubscription(organizationId?: string) {
     let intervalId: ReturnType<typeof setInterval> | undefined;
 
     async function loadBilling() {
-      const payload = await apiRequest<{ subscription: any; latestPayment: any }>(
-        `/api/billing/subscription?organizationId=${organizationId}`
-      );
+      try {
+        const payload = await apiRequest<{ subscription: any; latestPayment: any }>(
+          `/api/billing/subscription?organizationId=${organizationId}`
+        );
 
-      if (!active) {
-        return;
+        if (!active) {
+          return;
+        }
+
+        setSubscription(payload.subscription);
+        setLatestPayment(payload.latestPayment);
+        setError(null);
+      } catch (nextError) {
+        if (!active) {
+          return;
+        }
+
+        setError(
+          nextError instanceof Error
+            ? nextError.message
+            : "Não foi possível carregar os dados da assinatura."
+        );
       }
-
-      setSubscription(payload.subscription);
-      setLatestPayment(payload.latestPayment);
     }
 
     loadBilling()
@@ -52,6 +68,7 @@ export function useBillingSubscription(organizationId?: string) {
     subscription,
     latestPayment,
     loading,
+    error,
     setSubscription,
     setLatestPayment
   };

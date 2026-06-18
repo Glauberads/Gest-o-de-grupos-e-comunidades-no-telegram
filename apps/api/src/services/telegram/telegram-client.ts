@@ -1,6 +1,6 @@
 import { IntegrationError } from "../../lib/errors.js";
 import { logger } from "../../lib/logger.js";
-import { env } from "../../config/env.js";
+import { env, isProduction } from "../../config/env.js";
 
 type CreateInviteLinkInput = {
   chatId: string;
@@ -15,6 +15,12 @@ export class TelegramClient {
 
   async createInviteLink(input: CreateInviteLinkInput) {
     if (!env.TELEGRAM_BOT_TOKEN) {
+      if (isProduction()) {
+        throw new IntegrationError(
+          "Telegram integration is unavailable because TELEGRAM_BOT_TOKEN is missing"
+        );
+      }
+
       logger.warn("Telegram bot token not configured; returning mocked invite link");
 
       return {
@@ -51,6 +57,10 @@ export class TelegramClient {
   }
 
   async getMe(token: string) {
+    if (!token) {
+      throw new IntegrationError("Telegram bot token is required to validate the bot");
+    }
+
     const response = await fetch(`https://api.telegram.org/bot${token}/getMe`);
     const payload = await response.json();
 
@@ -65,6 +75,10 @@ export class TelegramClient {
   }
 
   async sendMessage(token: string, chatId: string, text: string) {
+    if (!token) {
+      throw new IntegrationError("Telegram bot token is required to send a Telegram message");
+    }
+
     const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: "POST",
       headers: {

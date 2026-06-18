@@ -38,6 +38,17 @@ export class BillingRepository {
     return result.data;
   }
 
+  async listOrganizationPayments(organizationId: string) {
+    const result = await (this.supabase as any)
+      .from("organization_payments")
+      .select("*")
+      .eq("organization_id", organizationId)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    return unwrapSupabase(result, "Failed to load organization payment history");
+  }
+
   async upsertOrganizationSubscription(
     input: Database["public"]["Tables"]["organization_subscriptions"]["Insert"]
   ) {

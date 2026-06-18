@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 
 import { decryptSecret, encryptSecret } from "../../lib/crypto.js";
-import { requireAuthenticatedUser } from "../../lib/auth.js";
+import { requireAuthenticatedUser, type AuthenticatedUser } from "../../lib/auth.js";
 import { getSupabaseAdminClient } from "../../lib/supabase.js";
 import { telegramClient } from "../../services/telegram/telegram-client.js";
 import { OrganizationRepository } from "../organizations/organization-repository.js";
@@ -33,6 +33,52 @@ const testMessageSchema = z.object({
   text: z.string().min(2).max(4000)
 });
 
+const organizationQuerySchema = z.object({
+  organizationId: z.uuid()
+});
+
+const telegramGroupParamsSchema = z.object({
+  groupId: z.uuid()
+});
+
+async function ensureOrganizationAccess(
+  supabase: any,
+  user: AuthenticatedUser,
+  organizationId: string,
+  requireActive = true
+) {
+  const organizationRepository = new OrganizationRepository(supabase);
+  await organizationRepository.ensureMembership(organizationId, user.id);
+  const organization = await organizationRepository.findById(organizationId);
+
+  if (requireActive && !user.isSuperAdmin && organization.status !== "active") {
+    throw new Error("Organization subscription must be active to access Telegram resources");
+  }
+
+  return organization;
+}
+
+async function createBotLog(
+  supabase: any,
+  input: {
+    organizationId: string;
+    communityId?: string | null;
+    action: string;
+    status?: string;
+    message?: string;
+    metadata?: Record<string, unknown>;
+  }
+) {
+  await (supabase as any).from("bot_logs").insert({
+    organization_id: input.organizationId,
+    community_id: input.communityId ?? null,
+    action: input.action,
+    status: input.status ?? "success",
+    message: input.message ?? null,
+    metadata: input.metadata ?? {}
+  });
+}
+
 export const telegramRoutes: FastifyPluginAsync = async (app) => {
   app.post("/telegram/bot/connect", async (request, reply) => {
     const payload = connectTelegramBotSchema.parse(request.body);
@@ -43,15 +89,7 @@ export const telegramRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(500).send({ message: "Supabase admin client is not configured" });
     }
 
-    const organizationRepository = new OrganizationRepository(supabase);
-    await organizationRepository.ensureMembership(payload.organizationId, user.id);
-    const organization = await organizationRepository.findById(payload.organizationId);
-
-    if (!user.isSuperAdmin && organization.status !== "active") {
-      return reply.code(403).send({
-        message: "Organization subscription must be active to connect Telegram bot"
-      });
-    }
+    await ensureOrganizationAccess(supabase, user, payload.organizationId, true);
 
     const me = await telegramClient.getMe(payload.token);
     const telegramBot = (await new TelegramBotRepository(supabase).upsert({
@@ -62,6 +100,16 @@ export const telegramRoutes: FastifyPluginAsync = async (app) => {
       last_validated_at: new Date().toISOString(),
       is_active: true
     })) as any;
+
+    await createBotLog(supabase, {
+      organizationId: payload.organizationId,
+      action: "telegram_bot_connected",
+      message: `Bot @${me.username ?? "sem-username"} validado com sucesso.`,
+      metadata: {
+        username: me.username ?? null,
+        botId: telegramBot.id
+      }
+    });
 
     return reply.code(200).send({
       telegramBot: {
@@ -76,11 +124,7 @@ export const telegramRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.get("/telegram/bot/status", async (request, reply) => {
-    const querySchema = z.object({
-      organizationId: z.uuid()
-    });
-
-    const query = querySchema.parse(request.query);
+    const query = organizationQuerySchema.parse(request.query);
     const user = await requireAuthenticatedUser(request);
     const supabase = getSupabaseAdminClient();
 
@@ -88,8 +132,7 @@ export const telegramRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(500).send({ message: "Supabase admin client is not configured" });
     }
 
-    const organizationRepository = new OrganizationRepository(supabase);
-    await organizationRepository.ensureMembership(query.organizationId, user.id);
+    await ensureOrganizationAccess(supabase, user, query.organizationId, true);
 
     const telegramBot = await new TelegramBotRepository(supabase).findByOrganization(
       query.organizationId
@@ -117,8 +160,7 @@ export const telegramRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(500).send({ message: "Supabase admin client is not configured" });
     }
 
-    const organizationRepository = new OrganizationRepository(supabase);
-    await organizationRepository.ensureMembership(payload.organizationId, user.id);
+    await ensureOrganizationAccess(supabase, user, payload.organizationId, true);
 
     const telegramBot = await new TelegramBotRepository(supabase).findByOrganization(
       payload.organizationId
@@ -134,6 +176,15 @@ export const telegramRoutes: FastifyPluginAsync = async (app) => {
       payload.text
     );
 
+    await createBotLog(supabase, {
+      organizationId: payload.organizationId,
+      action: "telegram_test_message_sent",
+      message: "Mensagem teste enviada com sucesso.",
+      metadata: {
+        telegramChatId: payload.telegramChatId
+      }
+    });
+
     return reply.code(200).send({ result });
   });
 
@@ -146,20 +197,7 @@ export const telegramRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(500).send({ message: "Supabase admin client is not configured" });
     }
 
-    await new OrganizationRepository(supabase).ensureMembership(
-      payload.organizationId,
-      user.id
-    );
-
-    const organization = await new OrganizationRepository(supabase).findById(
-      payload.organizationId
-    );
-
-    if (!user.isSuperAdmin && organization.status !== "active") {
-      return reply.code(403).send({
-        message: "Organization subscription must be active to connect Telegram"
-      });
-    }
+    await ensureOrganizationAccess(supabase, user, payload.organizationId, true);
 
     const telegramChat = await new TelegramChatRepository(supabase).upsert({
       organization_id: payload.organizationId,
@@ -171,6 +209,17 @@ export const telegramRoutes: FastifyPluginAsync = async (app) => {
       can_invite_users: payload.canInviteUsers,
       can_restrict_members: payload.canRestrictMembers,
       webhook_secret: payload.webhookSecret
+    });
+
+    await createBotLog(supabase, {
+      organizationId: payload.organizationId,
+      communityId: payload.communityId,
+      action: "telegram_chat_connected",
+      message: `Chat ${payload.title} vinculado à comunidade.`,
+      metadata: {
+        telegramChatId: payload.telegramChatId,
+        botIsAdmin: payload.botIsAdmin
+      }
     });
 
     return reply.code(200).send({ telegramChat });
@@ -185,15 +234,7 @@ export const telegramRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(500).send({ message: "Supabase admin client is not configured" });
     }
 
-    const organizationRepository = new OrganizationRepository(supabase);
-    await organizationRepository.ensureMembership(payload.organizationId, user.id);
-    const organization = await organizationRepository.findById(payload.organizationId);
-
-    if (!user.isSuperAdmin && organization.status !== "active") {
-      return reply.code(403).send({
-        message: "Organization subscription must be active to connect Telegram"
-      });
-    }
+    await ensureOrganizationAccess(supabase, user, payload.organizationId, true);
 
     const telegramBot = await new TelegramBotRepository(supabase).findByOrganization(
       payload.organizationId
@@ -222,15 +263,23 @@ export const telegramRoutes: FastifyPluginAsync = async (app) => {
       webhook_secret: payload.webhookSecret
     });
 
+    await createBotLog(supabase, {
+      organizationId: payload.organizationId,
+      communityId: payload.communityId,
+      action: "telegram_group_connected",
+      message: `Grupo ${payload.title} conectado com sucesso.`,
+      metadata: {
+        telegramChatId: payload.telegramChatId,
+        canInviteUsers: payload.canInviteUsers,
+        canRestrictMembers: payload.canRestrictMembers
+      }
+    });
+
     return reply.code(200).send({ telegramGroup, telegramChat });
   });
 
   app.get("/telegram/groups", async (request, reply) => {
-    const querySchema = z.object({
-      organizationId: z.uuid()
-    });
-
-    const query = querySchema.parse(request.query);
+    const query = organizationQuerySchema.parse(request.query);
     const user = await requireAuthenticatedUser(request);
     const supabase = getSupabaseAdminClient();
 
@@ -238,14 +287,59 @@ export const telegramRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(500).send({ message: "Supabase admin client is not configured" });
     }
 
-    const organizationRepository = new OrganizationRepository(supabase);
-    await organizationRepository.ensureMembership(query.organizationId, user.id);
+    await ensureOrganizationAccess(supabase, user, query.organizationId, true);
 
     const groups = await new TelegramGroupRepository(supabase).listByOrganization(
       query.organizationId
     );
 
     return reply.code(200).send({ groups });
+  });
+
+  app.get("/telegram/groups/:groupId", async (request, reply) => {
+    const params = telegramGroupParamsSchema.parse(request.params);
+    const query = organizationQuerySchema.parse(request.query);
+    const user = await requireAuthenticatedUser(request);
+    const supabase = getSupabaseAdminClient();
+
+    if (!supabase) {
+      return reply.code(500).send({ message: "Supabase admin client is not configured" });
+    }
+
+    await ensureOrganizationAccess(supabase, user, query.organizationId, true);
+
+    const group = (await new TelegramGroupRepository(supabase).findById(params.groupId)) as any;
+
+    if (!group || group.organization_id !== query.organizationId) {
+      return reply.code(404).send({ message: "Telegram group not found" });
+    }
+
+    return reply.code(200).send({ group });
+  });
+
+  app.get("/telegram/logs", async (request, reply) => {
+    const query = organizationQuerySchema.parse(request.query);
+    const user = await requireAuthenticatedUser(request);
+    const supabase = getSupabaseAdminClient();
+
+    if (!supabase) {
+      return reply.code(500).send({ message: "Supabase admin client is not configured" });
+    }
+
+    await ensureOrganizationAccess(supabase, user, query.organizationId, true);
+
+    const logsResult = await (supabase as any)
+      .from("bot_logs")
+      .select("id, organization_id, community_id, action, status, message, metadata, created_at")
+      .eq("organization_id", query.organizationId)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (logsResult.error) {
+      return reply.code(500).send({ message: "Failed to load Telegram logs" });
+    }
+
+    return reply.code(200).send({ logs: logsResult.data ?? [] });
   });
 
   app.get("/telegram/connect", async (request, reply) => {
@@ -262,20 +356,7 @@ export const telegramRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(500).send({ message: "Supabase admin client is not configured" });
     }
 
-    await new OrganizationRepository(supabase).ensureMembership(
-      query.organizationId,
-      user.id
-    );
-
-    const organization = await new OrganizationRepository(supabase).findById(
-      query.organizationId
-    );
-
-    if (!user.isSuperAdmin && organization.status !== "active") {
-      return reply.code(403).send({
-        message: "Organization subscription must be active to access Telegram settings"
-      });
-    }
+    await ensureOrganizationAccess(supabase, user, query.organizationId, true);
 
     const telegramChat = await new TelegramChatRepository(supabase).findByCommunity(
       query.organizationId,

@@ -152,7 +152,7 @@ export function CommunitiesPage() {
             <thead>
               <tr className="border-b border-slate-200 text-slate-500">
                 <th className="pb-3 font-medium">Nome</th>
-                <th className="pb-3 font-medium">Grupo Telegram</th>
+                <th className="pb-3 font-medium">Link público</th>
                 <th className="pb-3 font-medium">Status</th>
                 <th className="pb-3 font-medium">Membros</th>
                 <th className="pb-3 font-medium">Data criação</th>
@@ -181,7 +181,7 @@ export function CommunitiesPage() {
                   </td>
                 </tr>
               ) : (
-                filteredCommunities.map((community, index) => (
+                filteredCommunities.map((community) => (
                   <tr key={community.id} className="border-b border-slate-100 text-slate-700">
                     <td className="py-4">
                       <div className="font-medium text-slate-900">{community.name}</div>
@@ -197,7 +197,7 @@ export function CommunitiesPage() {
                       )}
                     </td>
                     <td className="py-4">{communityStatusBadge(community.status)}</td>
-                    <td className="py-4">{(index + 1) * 24}</td>
+                    <td className="py-4 text-slate-400">Este recurso está preparado para a próxima versão.</td>
                     <td className="py-4 text-slate-500">{formatDate(community.created_at)}</td>
                     <td className="py-4">
                       <div className="flex justify-end gap-2">

@@ -27,5 +27,14 @@ export class TelegramGroupRepository {
 
     return unwrapSupabase(result, "Failed to list Telegram groups");
   }
-}
 
+  async findById(groupId: string) {
+    const result = await (this.supabase as any)
+      .from("telegram_groups")
+      .select("*")
+      .eq("id", groupId)
+      .maybeSingle();
+
+    return unwrapSupabase(result, "Failed to load Telegram group");
+  }
+}

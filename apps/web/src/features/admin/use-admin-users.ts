@@ -2,31 +2,35 @@ import { useEffect, useState } from "react";
 
 import { apiRequest } from "@/lib/api";
 
-export function useTelegramBotStatus(organizationId?: string) {
-  const [telegramBot, setTelegramBot] = useState<any>(null);
+export function useAdminUsers(enabled: boolean) {
+  const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!organizationId) {
-      setTelegramBot(null);
+    if (!enabled) {
+      setUsers([]);
       setLoading(false);
       return;
     }
 
     let active = true;
 
-    apiRequest<{ telegramBot: any }>(`/api/telegram/bot/status?organizationId=${organizationId}`)
+    apiRequest<{ users: any[] }>("/api/admin/users")
       .then((payload) => {
-        if (active) {
-          setTelegramBot(payload.telegramBot);
-          setError(null);
+        if (!active) {
+          return;
         }
+
+        setUsers(payload.users ?? []);
+        setError(null);
       })
       .catch((nextError: Error) => {
-        if (active) {
-          setError(nextError.message);
+        if (!active) {
+          return;
         }
+
+        setError(nextError.message);
       })
       .finally(() => {
         if (active) {
@@ -37,10 +41,10 @@ export function useTelegramBotStatus(organizationId?: string) {
     return () => {
       active = false;
     };
-  }, [organizationId]);
+  }, [enabled]);
 
   return {
-    telegramBot,
+    users,
     loading,
     error
   };

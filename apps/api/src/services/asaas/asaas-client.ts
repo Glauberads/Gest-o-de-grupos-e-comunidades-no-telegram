@@ -1,6 +1,6 @@
 import { IntegrationError } from "../../lib/errors.js";
 import { logger } from "../../lib/logger.js";
-import { env } from "../../config/env.js";
+import { env, isProduction } from "../../config/env.js";
 
 type CreatePixPaymentInput = {
   customer: string;
@@ -27,6 +27,12 @@ type PixQrCodeResponse = {
 export class AsaasClient {
   async createCustomer(input: CreateCustomerInput) {
     if (!env.ASAAS_API_KEY) {
+      if (isProduction()) {
+        throw new IntegrationError(
+          "Asaas integration is unavailable because ASAAS_API_KEY is missing"
+        );
+      }
+
       logger.warn("Asaas API key not configured; returning mocked customer payload");
 
       return {
@@ -58,6 +64,12 @@ export class AsaasClient {
 
   async createPixPayment(input: CreatePixPaymentInput) {
     if (!env.ASAAS_API_KEY) {
+      if (isProduction()) {
+        throw new IntegrationError(
+          "Asaas integration is unavailable because ASAAS_API_KEY is missing"
+        );
+      }
+
       logger.warn("Asaas API key not configured; returning mocked payment payload");
 
       return {
@@ -95,6 +107,12 @@ export class AsaasClient {
 
   async getPixQrCode(paymentId: string) {
     if (!env.ASAAS_API_KEY) {
+      if (isProduction()) {
+        throw new IntegrationError(
+          "Asaas integration is unavailable because ASAAS_API_KEY is missing"
+        );
+      }
+
       return {
         encodedImage: "",
         payload: "00020101021226820014br.gov.bcb.pix...",

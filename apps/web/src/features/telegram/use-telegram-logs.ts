@@ -2,31 +2,35 @@ import { useEffect, useState } from "react";
 
 import { apiRequest } from "@/lib/api";
 
-export function useTelegramBotStatus(organizationId?: string) {
-  const [telegramBot, setTelegramBot] = useState<any>(null);
+export function useTelegramLogs(organizationId?: string) {
+  const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!organizationId) {
-      setTelegramBot(null);
+      setLogs([]);
       setLoading(false);
       return;
     }
 
     let active = true;
 
-    apiRequest<{ telegramBot: any }>(`/api/telegram/bot/status?organizationId=${organizationId}`)
+    apiRequest<{ logs: any[] }>(`/api/telegram/logs?organizationId=${organizationId}`)
       .then((payload) => {
-        if (active) {
-          setTelegramBot(payload.telegramBot);
-          setError(null);
+        if (!active) {
+          return;
         }
+
+        setLogs(payload.logs ?? []);
+        setError(null);
       })
       .catch((nextError: Error) => {
-        if (active) {
-          setError(nextError.message);
+        if (!active) {
+          return;
         }
+
+        setError(nextError.message);
       })
       .finally(() => {
         if (active) {
@@ -40,7 +44,7 @@ export function useTelegramBotStatus(organizationId?: string) {
   }, [organizationId]);
 
   return {
-    telegramBot,
+    logs,
     loading,
     error
   };

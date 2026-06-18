@@ -1,220 +1,305 @@
 # Manual de uso
 
-Este documento centraliza o uso operacional do projeto `Gestor de Comunidades Telegram`.
+Manual técnico e operacional do projeto `GestorGram`.
 
-## Visao geral
+## Visão geral
 
-O sistema hoje esta dividido em 3 partes:
+O ambiente está dividido em:
 
-- `Frontend`: Cloudflare Pages
-- `Backend`: Render
-- `Banco + Auth`: Supabase
+- Frontend: Cloudflare Pages
+- Backend: Render
+- Banco/Auth: Supabase
+- Integrações externas: Asaas + Telegram Bot API
 
 ## URLs atuais
 
 - Frontend principal: `https://gestorgram.glauberads.com.br`
 - Frontend alternativo: `https://gestorgram.pages.dev`
 - Backend API: `https://gestorgram-api.onrender.com`
-- Health check da API: `https://gestorgram-api.onrender.com/health`
+- Health check: `https://gestorgram-api.onrender.com/health`
 - Supabase: `https://exuffrthxjvnankwzcqh.supabase.co`
 
-## Acesso ao painel
+## Fluxo principal do produto
 
-1. Abra `https://gestorgram.glauberads.com.br`
-2. Entre com email e senha cadastrados no Supabase Auth
-3. Ao autenticar, o painel deve redirecionar para `/`
-4. O dashboard deve mostrar o tenant atual do usuario
+1. usuário cria conta
+2. sistema cria `organization` em `pending_payment`
+3. usuário escolhe plano SaaS
+4. backend gera Pix via Asaas
+5. webhook confirma pagamento
+6. organização fica `active`
+7. painel é liberado
+8. usuário conecta o bot Telegram
 
-## Ambientes e plataformas
+## Regras de acesso
 
-### Cloudflare Pages
+### Tenant
 
-Projeto frontend publicado a partir de:
+- `active`: acessa rotas privadas normalmente
+- `pending_payment`: vai para `/app/subscription`
+- `overdue`: vai para `/app/subscription`
+- `suspended`: vai para `/app/subscription`
+- `cancelled`: vai para `/app/subscription`
 
-- repositorio GitHub: `Gest-o-de-grupos-e-comunidades-no-telegram`
-- branch de producao: `main`
+### Super admin
+
+- entra pelo mesmo `/auth`
+- `/app` redireciona para `/app/admin/dashboard`
+- `/app/subscription` não é usado pelo super admin
+- shell admin é global, sem foco em cobrança do tenant
+
+## Rotas finais
+
+### Públicas
+
+- `/`
+- `/auth`
+- `/c/:slug`
+
+### Tenant
+
+- `/app/dashboard`
+- `/app/communities`
+- `/app/communities/new`
+- `/app/telegram/connect`
+- `/app/telegram/groups`
+- `/app/telegram/logs`
+- `/app/subscription`
+- `/app/subscription/history`
+
+### Super admin
+
+- `/app/admin/dashboard`
+- `/app/admin/plans`
+- `/app/admin/users`
+- `/app/admin/organizations`
+
+## Variáveis de ambiente
+
+### Frontend
+
+- `VITE_API_URL`
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+
+### Backend
+
+- `NODE_ENV`
+- `PORT`
+- `APP_URL`
+- `APP_URLS`
+- `DATABASE_URL`
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `JWT_SECRET`
+- `ASAAS_BASE_URL`
+- `ASAAS_API_KEY`
+- `ASAAS_WEBHOOK_TOKEN`
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_WEBHOOK_SECRET`
+
+## Configuração atual do Cloudflare Pages
+
+- repositório: `Gest-o-de-grupos-e-comunidades-no-telegram`
+- branch: `main`
 - root directory: `apps/web`
 - build command: `npm install && npm run build`
 - output directory: `dist`
 
-Variaveis configuradas no Pages:
+### Variáveis no Pages
 
 - `VITE_API_URL=https://gestorgram-api.onrender.com`
 - `VITE_SUPABASE_URL=https://exuffrthxjvnankwzcqh.supabase.co`
-- `VITE_SUPABASE_ANON_KEY=<anon key do Supabase>`
+- `VITE_SUPABASE_ANON_KEY=<anon key>`
 
-### Render
+## Configuração atual do Render
 
-Servico backend:
-
-- service name: `gestorgram-api`
+- service: `gestorgram-api`
 - runtime: `Node`
 - branch: `main`
-- root directory: vazio
+- root directory: `.`
 - build command: `npm install --include=dev && npm run build -w @gestor/api`
 - start command: `npm run start -w @gestor/api`
+- health check path: `/health`
 
-Variaveis principais no Render:
+### Variáveis no Render
 
 - `APP_URL=https://gestorgram.glauberads.com.br`
 - `APP_URLS=https://gestorgram.glauberads.com.br,https://gestorgram.pages.dev`
 - `SUPABASE_URL=https://exuffrthxjvnankwzcqh.supabase.co`
-- `SUPABASE_ANON_KEY=<anon key do Supabase>`
-- `SUPABASE_SERVICE_ROLE_KEY=<service role key do Supabase>`
+- `SUPABASE_ANON_KEY=<anon key>`
+- `SUPABASE_SERVICE_ROLE_KEY=<service role key>`
 - `JWT_SECRET=<segredo forte>`
 - `ASAAS_BASE_URL=https://api-sandbox.asaas.com/v3`
+- `ASAAS_API_KEY=<token do Asaas>`
+- `ASAAS_WEBHOOK_TOKEN=<token do webhook>`
+- `TELEGRAM_BOT_TOKEN=<token do bot>`
+- `TELEGRAM_WEBHOOK_SECRET=<segredo interno>`
 
-### Supabase
+## Configuração atual do Supabase
 
-Configuracoes importantes:
+### Auth URL Configuration
 
-- `Site URL`: `https://gestorgram.glauberads.com.br`
-- `Redirect URLs`:
+- Site URL: `https://gestorgram.glauberads.com.br`
+- Redirect URLs:
   - `https://gestorgram.glauberads.com.br`
   - `https://gestorgram.pages.dev`
 
-## Fluxo atual do sistema
+## Endpoints implementados
 
-### Login
-
-- O frontend autentica o admin usando Supabase Auth
-- O token do usuario e enviado no header `Authorization: Bearer <token>`
-- O backend valida o token com Supabase Admin
-
-### Tenant
-
-- Cada usuario pode ter uma ou mais `organizations`
-- O dashboard atual carrega o tenant principal associado ao usuario
-
-### Comunidades e planos
-
-O backend ja possui endpoints base para:
-
-- criar comunidades
-- listar comunidades por organizacao
-- criar planos
-- listar planos por comunidade
-
-Os endpoints existem, mas o painel ainda esta em fase inicial e ainda nao expoe todo o CRUD visual.
-
-## Endpoints atuais
+### Sistema
 
 - `GET /health`
-- `GET /api/auth/me`
-- `POST /api/auth/bootstrap`
-- `GET /api/organizations`
+
+### Billing
+
+- `GET /api/platform-plans`
+- `POST /api/billing/checkout/pix`
+- `POST /api/billing/reactivate`
+- `GET /api/billing/subscription?organizationId=<uuid>`
+- `GET /api/billing/history?organizationId=<uuid>`
+
+### Comunidades
+
 - `POST /api/communities`
 - `GET /api/communities?organizationId=<uuid>`
-- `POST /api/plans`
-- `GET /api/plans?organizationId=<uuid>&communityId=<uuid>`
+
+### Telegram
+
+- `POST /api/telegram/bot/connect`
+- `GET /api/telegram/bot/status?organizationId=<uuid>`
+- `POST /api/telegram/test-message`
+- `POST /api/telegram/groups`
+- `GET /api/telegram/groups?organizationId=<uuid>`
+- `GET /api/telegram/logs?organizationId=<uuid>`
+
+### Admin
+
+- `GET /api/admin/users`
+- `GET /api/admin/organizations`
+
+### Público
+
 - `POST /api/public/checkout/pix`
 - `POST /api/webhooks/asaas`
 
-## Operacao do projeto localmente
+## Health check
 
-### Requisitos
+O health retorna:
 
-- Node.js 24+
-- npm 11+
+- `status`
+- `service`
+- `env`
+- `uptimeSeconds`
+- `timestamp`
+- `app.allowedOrigins`
+- `integrations.supabase`
+- `integrations.asaas`
+- `integrations.telegram`
 
-### Instalar dependencias
+Uso:
+
+- validar se a API está viva
+- validar se Supabase está respondendo
+- validar se Asaas e Telegram estão configurados
+
+## Telegram
+
+### Pré-requisitos
+
+- organização `active`
+- bot criado no BotFather
+- token salvo no backend
+- bot adicionado ao grupo
+- bot com permissão de admin
+
+### Fluxo técnico
+
+1. `POST /api/telegram/bot/connect`
+2. backend valida token com `getMe`
+3. backend salva token criptografado
+4. usuário vincula grupo via `POST /api/telegram/groups`
+5. usuário testa envio via `POST /api/telegram/test-message`
+6. eventos aparecem em `/api/telegram/logs`
+
+## Billing / assinatura
+
+### Estados suportados
+
+- `pending_payment`
+- `active`
+- `overdue`
+- `suspended`
+- `cancelled`
+
+### Comportamento
+
+- `pending_payment`: cobrança aberta, painel bloqueado
+- `active`: painel liberado
+- `overdue`: painel bloqueado até regularização
+- `suspended`: painel bloqueado
+- `cancelled`: precisa nova assinatura/reativação
+
+## Segurança
+
+- nenhuma chave sensível vai para o frontend
+- backend exige Bearer token nos endpoints privados
+- token do bot não é devolvido ao frontend
+- webhooks usam controle de idempotência
+- erros em produção não retornam stack trace
+- cliente Asaas e Telegram só mockam fora de produção quando falta configuração
+
+## Checklist de deploy
+
+### Cloudflare Pages
+
+- conectar repositório correto
+- usar root `apps/web`
+- configurar `VITE_API_URL`
+- configurar `VITE_SUPABASE_URL`
+- configurar `VITE_SUPABASE_ANON_KEY`
+- confirmar domínio customizado
+
+### Render
+
+- confirmar branch `main`
+- confirmar build/start command
+- revisar variáveis sensíveis
+- validar `/health`
+- testar `GET /api/platform-plans`
+
+### Supabase
+
+- rodar migrations
+- revisar `Site URL`
+- revisar `Redirect URLs`
+- confirmar usuário super admin se necessário
+
+## Checklist de teste em produção
+
+- abrir `/`
+- criar conta em `/auth`
+- confirmar criação da organização
+- validar redirecionamento para `/app/subscription`
+- gerar Pix de assinatura
+- confirmar webhook do Asaas
+- validar acesso ao `/app/dashboard`
+- conectar bot em `/app/telegram/connect`
+- vincular grupo em `/app/telegram/groups`
+- validar logs em `/app/telegram/logs`
+- validar super admin em `/app/admin/dashboard`
+
+## Comandos locais
 
 ```bash
 npm install
-```
-
-### Rodar localmente
-
-```bash
 npm run dev
-```
-
-### Validar o projeto
-
-```bash
 npm run check
 npm run build
-```
-
-## Estrutura principal do repositorio
-
-- `apps/web`: frontend React + Vite
-- `apps/api`: backend Fastify
-- `packages/shared`: contratos compartilhados
-- `supabase/migrations`: schema SQL
-- `scripts`: utilitarios operacionais
-
-## Banco e dados iniciais
-
-Migration principal:
-
-- `supabase/migrations/0001_initial_schema.sql`
-
-Entidades principais:
-
-- `users`
-- `organizations`
-- `organization_users`
-- `communities`
-- `telegram_chats`
-- `plans`
-- `members`
-- `payments`
-- `subscriptions`
-- `invite_links`
-- `webhook_events`
-- `bot_logs`
-- `automations`
-
-## Super admin
-
-O projeto reconhece `super_admin` via `app_metadata` no Supabase Auth.
-
-Script utilitario:
-
-```bash
 npm run set:super-admin -- <user-id>
 ```
 
-Esse comando define:
+## Status de validação
 
-- `app_metadata.role = "super_admin"`
-- `app_metadata.is_super_admin = true`
-
-## Dominio customizado
-
-Dominio principal configurado:
-
-- `gestorgram.glauberads.com.br`
-
-Fluxo usado:
-
-1. Criar Pages na Cloudflare
-2. Conectar subdominio em `Custom domains`
-3. Atualizar `APP_URL` e `APP_URLS` no Render
-4. Atualizar `Site URL` e `Redirect URLs` no Supabase
-
-## Boas praticas operacionais
-
-- Nunca expor `SUPABASE_SERVICE_ROLE_KEY` no frontend
-- Nunca expor credenciais do Asaas no frontend
-- Rotacionar chaves sensiveis se forem compartilhadas fora do ambiente seguro
-- Usar `Manual Deploy` no Render quando houver mudanca critica de backend
-- Confirmar `health` da API apos cada deploy
-
-## Checklist rapido de producao
-
-- Frontend abre no dominio principal
-- Login funciona
-- Dashboard carrega o tenant
-- API responde em `/health`
-- Supabase redirect URLs estao corretas
-- Render aceita o dominio principal em `APP_URLS`
-
-## Proximos passos recomendados
-
-- Criar CRUD visual de comunidades
-- Criar CRUD visual de planos
-- Integrar checkout Pix real com Asaas
-- Conectar bot Telegram com webhook real
-- Automatizar cobranca, liberacao e remocao de membros
+- `npm run check`: ok
+- `npm run build`: ok

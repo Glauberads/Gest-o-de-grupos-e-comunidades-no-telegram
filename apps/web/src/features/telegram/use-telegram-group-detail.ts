@@ -2,31 +2,37 @@ import { useEffect, useState } from "react";
 
 import { apiRequest } from "@/lib/api";
 
-export function useTelegramBotStatus(organizationId?: string) {
-  const [telegramBot, setTelegramBot] = useState<any>(null);
+export function useTelegramGroupDetail(groupId?: string, organizationId?: string) {
+  const [group, setGroup] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!organizationId) {
-      setTelegramBot(null);
+    if (!groupId || !organizationId) {
+      setGroup(null);
       setLoading(false);
       return;
     }
 
     let active = true;
 
-    apiRequest<{ telegramBot: any }>(`/api/telegram/bot/status?organizationId=${organizationId}`)
+    apiRequest<{ group: any }>(
+      `/api/telegram/groups/${groupId}?organizationId=${organizationId}`
+    )
       .then((payload) => {
-        if (active) {
-          setTelegramBot(payload.telegramBot);
-          setError(null);
+        if (!active) {
+          return;
         }
+
+        setGroup(payload.group);
+        setError(null);
       })
       .catch((nextError: Error) => {
-        if (active) {
-          setError(nextError.message);
+        if (!active) {
+          return;
         }
+
+        setError(nextError.message);
       })
       .finally(() => {
         if (active) {
@@ -37,10 +43,10 @@ export function useTelegramBotStatus(organizationId?: string) {
     return () => {
       active = false;
     };
-  }, [organizationId]);
+  }, [groupId, organizationId]);
 
   return {
-    telegramBot,
+    group,
     loading,
     error
   };

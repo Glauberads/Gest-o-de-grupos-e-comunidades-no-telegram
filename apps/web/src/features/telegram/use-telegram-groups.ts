@@ -5,9 +5,11 @@ import { apiRequest } from "@/lib/api";
 export function useTelegramGroups(organizationId?: string) {
   const [groups, setGroups] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!organizationId) {
+      setGroups([]);
       setLoading(false);
       return;
     }
@@ -18,6 +20,12 @@ export function useTelegramGroups(organizationId?: string) {
       .then((payload) => {
         if (active) {
           setGroups(payload.groups);
+          setError(null);
+        }
+      })
+      .catch((nextError: Error) => {
+        if (active) {
+          setError(nextError.message);
         }
       })
       .finally(() => {
@@ -34,6 +42,7 @@ export function useTelegramGroups(organizationId?: string) {
   return {
     groups,
     loading,
+    error,
     setGroups
   };
 }

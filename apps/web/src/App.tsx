@@ -1,176 +1,340 @@
-import { ReactElement, useMemo } from "react";
+import { lazy, Suspense, type ReactNode } from "react";
 import {
   BarChart3,
-  Bot,
   Building2,
   CreditCard,
   LayoutDashboard,
   LifeBuoy,
   LoaderCircle,
-  Settings,
   Shield,
   Sparkles,
   Users,
   Zap
 } from "lucide-react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 
 import { AppShell } from "./components/app/app-shell";
+import { Card } from "./components/ui/card";
 import { useAuth } from "./features/auth/use-auth";
+import {
+  getSubscriptionStatusDescription,
+  isBillingBlockingStatus
+} from "./features/organizations/access-control";
 import { useOrganizations } from "./features/organizations/use-organizations";
-import { AdminDashboardPage } from "./pages/admin-dashboard-page";
-import { AdminPlansPage } from "./pages/admin-plans-page";
-import { AdminPlatformDashboardPage } from "./pages/admin-platform-dashboard-page";
-import { AuthPage } from "./pages/auth-page";
-import { CommunitiesPage } from "./pages/communities-page";
-import { CommunityCreatePage } from "./pages/community-create-page";
-import { ConnectBotPage } from "./pages/connect-bot-page";
 import { ModulePlaceholderPage } from "./pages/module-placeholder-page";
-import { PublicCheckoutPage } from "./pages/public-checkout-page";
-import { PublicLandingPage } from "./pages/public-landing-page";
-import { SubscriptionPage } from "./pages/subscription-page";
-import { TelegramGroupsPage } from "./pages/telegram-groups-page";
+import { SubscriptionBlockedStatePage } from "./pages/subscription-blocked-state-page";
 
-function ProtectedLayout({
-  requiresActiveSubscription = true
-}: {
-  requiresActiveSubscription?: boolean;
-}) {
-  const { session } = useAuth();
-  const { organizations, loading } = useOrganizations();
+const AuthPage = lazyPage(() => import("./pages/auth-page"), "AuthPage");
+const PublicLandingPage = lazyPage(() => import("./pages/public-landing-page"), "PublicLandingPage");
+const PublicCheckoutPage = lazyPage(() => import("./pages/public-checkout-page"), "PublicCheckoutPage");
+const AdminDashboardPage = lazyPage(() => import("./pages/admin-dashboard-page"), "AdminDashboardPage");
+const AdminPlansPage = lazyPage(() => import("./pages/admin-plans-page"), "AdminPlansPage");
+const AdminPlatformDashboardPage = lazyPage(
+  () => import("./pages/admin-platform-dashboard-page"),
+  "AdminPlatformDashboardPage"
+);
+const AdminUsersPage = lazyPage(() => import("./pages/admin-users-page"), "AdminUsersPage");
+const AdminOrganizationsPage = lazyPage(
+  () => import("./pages/admin-organizations-page"),
+  "AdminOrganizationsPage"
+);
+const CommunitiesPage = lazyPage(() => import("./pages/communities-page"), "CommunitiesPage");
+const CommunityCreatePage = lazyPage(
+  () => import("./pages/community-create-page"),
+  "CommunityCreatePage"
+);
+const ConnectBotPage = lazyPage(() => import("./pages/connect-bot-page"), "ConnectBotPage");
+const SubscriptionPage = lazyPage(() => import("./pages/subscription-page"), "SubscriptionPage");
+const SubscriptionHistoryPage = lazyPage(
+  () => import("./pages/subscription-history-page"),
+  "SubscriptionHistoryPage"
+);
+const TelegramGroupsPage = lazyPage(
+  () => import("./pages/telegram-groups-page"),
+  "TelegramGroupsPage"
+);
+const TelegramGroupDetailPage = lazyPage(
+  () => import("./pages/telegram-group-detail-page"),
+  "TelegramGroupDetailPage"
+);
+const TelegramLogsPage = lazyPage(() => import("./pages/telegram-logs-page"), "TelegramLogsPage");
+
+function lazyPage<TModule extends Record<string, unknown>, TKey extends keyof TModule>(
+  loader: () => Promise<TModule>,
+  exportName: TKey
+) {
+  return lazy(async () => {
+    const module = await loader();
+    return {
+      default: module[exportName] as React.ComponentType
+    };
+  });
+}
+
+function FullScreenLoader() {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-50">
+      <LoaderCircle className="h-6 w-6 animate-spin" />
+    </main>
+  );
+}
+
+function RouteLoader() {
+  return (
+    <div className="space-y-6">
+      <Card className="rounded-[28px] border border-slate-800 bg-slate-900/80 p-8 text-slate-100 shadow-sm">
+        <div className="flex items-center gap-3 text-sm text-slate-400">
+          <LoaderCircle className="h-4 w-4 animate-spin" />
+          Carregando módulo do GestorGram...
+        </div>
+      </Card>
+      <div className="grid gap-4 md:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <Card key={index} className="h-36 rounded-[28px] border border-slate-200 bg-white shadow-sm" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function LazyRoute({ children }: { children: ReactNode }) {
+  return <Suspense fallback={<RouteLoader />}>{children}</Suspense>;
+}
+
+function ProtectedAppLayout() {
+  const { session, loading } = useAuth();
+  const { organizations, loading: organizationsLoading, error } = useOrganizations();
+  const isSuperAdmin = session?.user.app_metadata?.is_super_admin === true;
+
+  if (loading || (session && organizationsLoading)) {
+    return <FullScreenLoader />;
+  }
 
   if (!session) {
     return <Navigate to="/auth" replace />;
   }
 
-  if (loading) {
+  if (!isSuperAdmin && error) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-50">
-        <LoaderCircle className="h-6 w-6 animate-spin" />
-      </main>
+      <SubscriptionBlockedStatePage
+        title="Não foi possível carregar sua organização"
+        description={error}
+      />
     );
   }
 
-  const organization = organizations[0];
-  const organizationNeedsBilling =
-    organization &&
-    ["pending_payment", "overdue", "suspended", "cancelled"].includes(organization.status);
-  const isSuperAdmin = Boolean(session.user.app_metadata?.is_super_admin);
-
-  if (!isSuperAdmin && requiresActiveSubscription && organizationNeedsBilling) {
-    return <Navigate to="/app/subscription" replace />;
+  if (!isSuperAdmin && organizations.length === 0) {
+    return (
+      <SubscriptionBlockedStatePage
+        title="Nenhuma organização disponível"
+        description="Seu usuário ainda não possui uma organização pronta para operar. Finalize o onboarding ou revise o bootstrap do tenant."
+      />
+    );
   }
 
   return <AppShell />;
 }
 
-function SuperAdminGuard({ children }: { children: ReactElement }) {
+function AppIndexRedirect() {
   const { session } = useAuth();
-  const isSuperAdmin = Boolean(session?.user.app_metadata?.is_super_admin);
+  const { organizations } = useOrganizations();
+
+  const organization = organizations[0];
+  const isSuperAdmin = session?.user.app_metadata?.is_super_admin === true;
+
+  if (isSuperAdmin) {
+    return <Navigate to="/app/admin/dashboard" replace />;
+  }
+
+  if (organization && isBillingBlockingStatus(organization.status)) {
+    return <Navigate to="/app/subscription" replace />;
+  }
+
+  return <Navigate to="/app/dashboard" replace />;
+}
+
+function TenantSubscriptionGuard() {
+  const { session } = useAuth();
+  const { organizations } = useOrganizations();
+  const organization = organizations[0];
+  const isSuperAdmin = session?.user.app_metadata?.is_super_admin === true;
+
+  if (isSuperAdmin) {
+    return <Navigate to="/app/admin/dashboard" replace />;
+  }
+
+  if (!organization) {
+    return (
+      <SubscriptionBlockedStatePage
+        title="Organização não encontrada"
+        description="Não encontramos um tenant válido para esta conta. Revise o onboarding antes de continuar."
+      />
+    );
+  }
+
+  return <Outlet />;
+}
+
+function TenantActiveGuard() {
+  const { session } = useAuth();
+  const { organizations } = useOrganizations();
+  const organization = organizations[0];
+  const isSuperAdmin = session?.user.app_metadata?.is_super_admin === true;
+
+  if (isSuperAdmin) {
+    return <Navigate to="/app/admin/dashboard" replace />;
+  }
+
+  if (!organization) {
+    return (
+      <SubscriptionBlockedStatePage
+        title="Organização não encontrada"
+        description="Seu acesso ainda não possui um tenant operacional vinculado."
+      />
+    );
+  }
+
+  if (isBillingBlockingStatus(organization.status)) {
+    return <Navigate to="/app/subscription" replace />;
+  }
+
+  return <Outlet />;
+}
+
+function SuperAdminGuard() {
+  const { session } = useAuth();
+  const isSuperAdmin = session?.user.app_metadata?.is_super_admin === true;
 
   if (!isSuperAdmin) {
     return <Navigate to="/app" replace />;
   }
 
-  return children;
+  return <Outlet />;
 }
 
 export function App() {
   const { loading, session } = useAuth();
   const { organizations, loading: organizationsLoading } = useOrganizations();
 
-  const organization = organizations[0];
-  const organizationNeedsBilling = useMemo(
-    () =>
-      organization &&
-      ["pending_payment", "overdue", "suspended", "cancelled"].includes(organization.status),
-    [organization]
-  );
-  const isSuperAdmin = Boolean(session?.user.app_metadata?.is_super_admin);
-
   if (loading || (session && organizationsLoading)) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-50">
-        <LoaderCircle className="h-6 w-6 animate-spin" />
-      </main>
-    );
+    return <FullScreenLoader />;
   }
+
+  const organization = organizations[0];
 
   return (
     <Routes>
-      <Route path="/" element={<PublicLandingPage />} />
-      <Route path="/auth" element={<AuthPage />} />
-      <Route path="/c/:slug" element={<PublicCheckoutPage />} />
+      <Route
+        path="/"
+        element={
+          session && organization && !isBillingBlockingStatus(organization.status) ? (
+            <Navigate to="/app" replace />
+          ) : (
+            <LazyRoute>
+              <PublicLandingPage />
+            </LazyRoute>
+          )
+        }
+      />
+      <Route
+        path="/auth"
+        element={
+          <LazyRoute>
+            <AuthPage />
+          </LazyRoute>
+        }
+      />
+      <Route
+        path="/c/:slug"
+        element={
+          <LazyRoute>
+            <PublicCheckoutPage />
+          </LazyRoute>
+        }
+      />
 
-      <Route path="/app" element={<ProtectedLayout requiresActiveSubscription={false} />}>
-        <Route
-          index
-          element={
-            isSuperAdmin ? (
-              <Navigate to="/app/admin/dashboard" replace />
-            ) : organizationNeedsBilling ? (
-              <Navigate to="/app/subscription" replace />
-            ) : (
-              <Navigate to="/app/dashboard" replace />
-            )
-          }
-        />
-        <Route
-          path="dashboard"
-          element={
-            organizationNeedsBilling && !isSuperAdmin ? <Navigate to="/app/subscription" replace /> : <AdminDashboardPage />
-          }
-        />
-        <Route
-          path="communities"
-          element={
-            organizationNeedsBilling && !isSuperAdmin ? <Navigate to="/app/subscription" replace /> : <CommunitiesPage />
-          }
-        />
-        <Route
-          path="communities/new"
-          element={
-            organizationNeedsBilling && !isSuperAdmin ? <Navigate to="/app/subscription" replace /> : <CommunityCreatePage />
-          }
-        />
-        <Route
-          path="telegram/connect"
-          element={
-            organizationNeedsBilling && !isSuperAdmin ? <Navigate to="/app/subscription" replace /> : <ConnectBotPage />
-          }
-        />
-        <Route
-          path="telegram/groups"
-          element={
-            organizationNeedsBilling && !isSuperAdmin ? <Navigate to="/app/subscription" replace /> : <TelegramGroupsPage />
-          }
-        />
-        <Route
-          path="telegram/logs"
-          element={
-            organizationNeedsBilling && !isSuperAdmin ? (
-              <Navigate to="/app/subscription" replace />
-            ) : (
-              <ModulePlaceholderPage
-                eyebrow="Telegram"
-                title="Logs do bot centralizados"
-                description="Aqui vamos concentrar eventos do webhook, falhas do bot e histórico operacional por comunidade."
-                icon={Bot}
-                highlights={[
-                  "Eventos do webhook Telegram com filtros por comunidade",
-                  "Erros de permissão e reconexão do bot",
-                  "Linha do tempo operacional com auditoria"
-                ]}
-              />
-            )
-          }
-        />
-        <Route
-          path="automations/welcome"
-          element={
-            organizationNeedsBilling && !isSuperAdmin ? (
-              <Navigate to="/app/subscription" replace />
-            ) : (
+      <Route path="/app" element={<ProtectedAppLayout />}>
+        <Route index element={<AppIndexRedirect />} />
+
+        <Route element={<TenantSubscriptionGuard />}>
+          <Route
+            path="subscription"
+            element={
+              <LazyRoute>
+                <SubscriptionPage />
+              </LazyRoute>
+            }
+          />
+          <Route
+            path="subscription/history"
+            element={
+              <LazyRoute>
+                <SubscriptionHistoryPage />
+              </LazyRoute>
+            }
+          />
+        </Route>
+
+        <Route element={<TenantActiveGuard />}>
+          <Route
+            path="dashboard"
+            element={
+              <LazyRoute>
+                <AdminDashboardPage />
+              </LazyRoute>
+            }
+          />
+          <Route
+            path="communities"
+            element={
+              <LazyRoute>
+                <CommunitiesPage />
+              </LazyRoute>
+            }
+          />
+          <Route
+            path="communities/new"
+            element={
+              <LazyRoute>
+                <CommunityCreatePage />
+              </LazyRoute>
+            }
+          />
+          <Route
+            path="telegram/connect"
+            element={
+              <LazyRoute>
+                <ConnectBotPage />
+              </LazyRoute>
+            }
+          />
+          <Route
+            path="telegram/groups"
+            element={
+              <LazyRoute>
+                <TelegramGroupsPage />
+              </LazyRoute>
+            }
+          />
+          <Route
+            path="telegram/groups/:groupId"
+            element={
+              <LazyRoute>
+                <TelegramGroupDetailPage />
+              </LazyRoute>
+            }
+          />
+          <Route
+            path="telegram/logs"
+            element={
+              <LazyRoute>
+                <TelegramLogsPage />
+              </LazyRoute>
+            }
+          />
+          <Route
+            path="automations/welcome"
+            element={
               <ModulePlaceholderPage
                 eyebrow="Automações"
                 title="Boas-vindas inteligentes"
@@ -182,15 +346,11 @@ export function App() {
                   "Ativação gradual por fluxo"
                 ]}
               />
-            )
-          }
-        />
-        <Route
-          path="automations/approval"
-          element={
-            organizationNeedsBilling && !isSuperAdmin ? (
-              <Navigate to="/app/subscription" replace />
-            ) : (
+            }
+          />
+          <Route
+            path="automations/approval"
+            element={
               <ModulePlaceholderPage
                 eyebrow="Automações"
                 title="Aprovação automática de acesso"
@@ -202,15 +362,11 @@ export function App() {
                   "Liberação e remoção automatizadas"
                 ]}
               />
-            )
-          }
-        />
-        <Route
-          path="automations/messages"
-          element={
-            organizationNeedsBilling && !isSuperAdmin ? (
-              <Navigate to="/app/subscription" replace />
-            ) : (
+            }
+          />
+          <Route
+            path="automations/messages"
+            element={
               <ModulePlaceholderPage
                 eyebrow="Automações"
                 title="Mensagens automáticas do ciclo de vida"
@@ -222,15 +378,11 @@ export function App() {
                   "Comunicação alinhada ao plano"
                 ]}
               />
-            )
-          }
-        />
-        <Route
-          path="members/list"
-          element={
-            organizationNeedsBilling && !isSuperAdmin ? (
-              <Navigate to="/app/subscription" replace />
-            ) : (
+            }
+          />
+          <Route
+            path="members/list"
+            element={
               <ModulePlaceholderPage
                 eyebrow="Membros"
                 title="Lista operacional de membros"
@@ -242,15 +394,11 @@ export function App() {
                   "Ações manuais de liberação e remoção"
                 ]}
               />
-            )
-          }
-        />
-        <Route
-          path="members/stats"
-          element={
-            organizationNeedsBilling && !isSuperAdmin ? (
-              <Navigate to="/app/subscription" replace />
-            ) : (
+            }
+          />
+          <Route
+            path="members/stats"
+            element={
               <ModulePlaceholderPage
                 eyebrow="Membros"
                 title="Estatísticas de retenção"
@@ -262,138 +410,98 @@ export function App() {
                   "Tendência de novos membros"
                 ]}
               />
-            )
-          }
-        />
-        <Route
-          path="subscription"
-          element={isSuperAdmin ? <Navigate to="/app/admin/dashboard" replace /> : <SubscriptionPage />}
-        />
-        <Route
-          path="subscription/history"
-          element={
-            isSuperAdmin ? (
-              <Navigate to="/app/admin/dashboard" replace />
-            ) : (
+            }
+          />
+          <Route
+            path="settings/profile"
+            element={
               <ModulePlaceholderPage
-                eyebrow="Assinatura"
-                title="Histórico financeiro da plataforma"
-                description="Aqui vamos detalhar faturas, tentativas, confirmações e recorrências do SaaS GestorGram."
-                icon={CreditCard}
+                eyebrow="Configurações"
+                title="Perfil e identidade do workspace"
+                description="Ajuste nome, avatar e identidade visual principal do seu workspace GestorGram."
+                icon={LayoutDashboard}
                 highlights={[
-                  "Linha do tempo de cobranças",
-                  "Status por pagamento",
-                  "Detalhes completos da recorrência"
+                  "Dados do administrador",
+                  "Identidade da organização",
+                  "Preferências de exibição"
                 ]}
               />
-            )
-          }
-        />
-        <Route
-          path="admin/dashboard"
-          element={
-            <SuperAdminGuard>
-              <AdminPlatformDashboardPage />
-            </SuperAdminGuard>
-          }
-        />
-        <Route
-          path="admin/plans"
-          element={
-            <SuperAdminGuard>
-              <AdminPlansPage />
-            </SuperAdminGuard>
-          }
-        />
-        <Route
-          path="admin/users"
-          element={
-            <SuperAdminGuard>
+            }
+          />
+          <Route
+            path="settings/security"
+            element={
               <ModulePlaceholderPage
-                eyebrow="Admin"
-                title="Gestão de usuários da plataforma"
-                description="Área reservada para controlar acesso administrativo, roles e suporte operacional."
+                eyebrow="Configurações"
+                title="Segurança e acesso"
+                description="Central de segurança preparada para MFA, sessões ativas e políticas de acesso."
                 icon={Shield}
                 highlights={[
-                  "Usuários por tenant",
-                  "Permissões e roles",
-                  "Ações administrativas seguras"
+                  "Sessões autenticadas",
+                  "Políticas de acesso",
+                  "Controles sensíveis centralizados"
                 ]}
               />
-            </SuperAdminGuard>
-          }
-        />
-        <Route
-          path="admin/organizations"
-          element={
-            <SuperAdminGuard>
+            }
+          />
+          <Route
+            path="settings/preferences"
+            element={
               <ModulePlaceholderPage
-                eyebrow="Admin"
-                title="Organizações da plataforma"
-                description="Tenants, status comerciais e visão operacional consolidada em um só lugar."
+                eyebrow="Configurações"
+                title="Preferências do produto"
+                description="Defina padrões de idioma, notificações e experiência geral do painel."
                 icon={Building2}
                 highlights={[
-                  "Status da organização",
-                  "Plano contratado",
-                  "Contexto operacional por tenant"
+                  "Notificações e alertas",
+                  "Preferências de interface",
+                  "Padronização da operação"
                 ]}
               />
-            </SuperAdminGuard>
-          }
-        />
-        <Route
-          path="settings/profile"
-          element={
-            <ModulePlaceholderPage
-              eyebrow="Configurações"
-              title="Perfil e identidade do workspace"
-              description="Ajuste nome, avatar e identidade visual principal do seu workspace GestorGram."
-              icon={Settings}
-              highlights={[
-                "Dados do administrador",
-                "Identidade da organização",
-                "Preferências de exibição"
-              ]}
-            />
-          }
-        />
-        <Route
-          path="settings/security"
-          element={
-            <ModulePlaceholderPage
-              eyebrow="Configurações"
-              title="Segurança e acesso"
-              description="Central de segurança preparada para MFA, sessões ativas e políticas de acesso."
-              icon={Shield}
-              highlights={[
-                "Sessões autenticadas",
-                "Políticas de acesso",
-                "Controles sensíveis centralizados"
-              ]}
-            />
-          }
-        />
-        <Route
-          path="settings/preferences"
-          element={
-            <ModulePlaceholderPage
-              eyebrow="Configurações"
-              title="Preferências do produto"
-              description="Defina padrões de idioma, notificações e experiência geral do painel."
-              icon={LayoutDashboard}
-              highlights={[
-                "Notificações e alertas",
-                "Preferências de interface",
-                "Padronização da operação"
-              ]}
-            />
-          }
-        />
+            }
+          />
+        </Route>
+
+        <Route element={<SuperAdminGuard />}>
+          <Route
+            path="admin/dashboard"
+            element={
+              <LazyRoute>
+                <AdminPlatformDashboardPage />
+              </LazyRoute>
+            }
+          />
+          <Route
+            path="admin/plans"
+            element={
+              <LazyRoute>
+                <AdminPlansPage />
+              </LazyRoute>
+            }
+          />
+          <Route
+            path="admin/users"
+            element={
+              <LazyRoute>
+                <AdminUsersPage />
+              </LazyRoute>
+            }
+          />
+          <Route
+            path="admin/organizations"
+            element={
+              <LazyRoute>
+                <AdminOrganizationsPage />
+              </LazyRoute>
+            }
+          />
+        </Route>
       </Route>
 
       <Route path="/subscription" element={<Navigate to="/app/subscription" replace />} />
       <Route path="/communities" element={<Navigate to="/app/communities" replace />} />
       <Route path="/telegram/connect" element={<Navigate to="/app/telegram/connect" replace />} />
+      <Route path="/checkout/mock" element={<Navigate to="/app/subscription" replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
