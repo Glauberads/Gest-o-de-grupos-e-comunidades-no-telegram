@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { requireAuthenticatedUser } from "../../lib/auth.js";
 import { getSupabaseAdminClient } from "../../lib/supabase.js";
+import { AuditLogService } from "../../services/audit/audit-log-service.js";
 import { BillingRepository } from "../billing/billing-repository.js";
 import { OrganizationRepository } from "../organizations/organization-repository.js";
 import { PlatformPlanRepository } from "../platform-plans/platform-plan-repository.js";
@@ -92,6 +93,26 @@ async function requireSuperAdminAccess(request: Parameters<typeof requireAuthent
   const user = await requireAuthenticatedUser(request);
 
   if (!user.isSuperAdmin) {
+    const supabase = getSupabaseAdminClient();
+
+    if (supabase) {
+      await new AuditLogService(supabase).recordFromRequest(request as any, {
+        userId: user.id,
+        actorType: "user",
+        actorId: user.id,
+        actorEmail: user.email,
+        category: "security",
+        action: "access_blocked",
+        status: "failed",
+        severity: "warning",
+        message: "Tentativa de acesso a recurso exclusivo de super admin.",
+        metadata: {
+          path: (request as any).url,
+          method: (request as any).method
+        }
+      }).catch(() => undefined);
+    }
+
     throw new Error("Only super admins can access this resource");
   }
 
@@ -134,6 +155,24 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const plan = await new AdminPlatformPlanService(
       new PlatformPlanRepository(supabase)
     ).createPlan(user.id, payload);
+
+    await new AuditLogService(supabase).recordFromRequest(request, {
+      userId: user.id,
+      actorType: "super_admin",
+      actorId: user.id,
+      actorEmail: user.email,
+      category: "admin",
+      action: "platform_plan_created",
+      entityType: "platform_plan",
+      entityId: (plan as any).id,
+      status: "success",
+      severity: "info",
+      message: "Plano SaaS criado pelo super admin.",
+      metadata: {
+        planName: (plan as any).name,
+        slug: (plan as any).slug
+      }
+    });
 
     return reply.code(201).send({ plan });
   });
@@ -179,6 +218,24 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       new PlatformPlanRepository(supabase)
     ).updatePlan(user.id, params.planId, payload);
 
+    await new AuditLogService(supabase).recordFromRequest(request, {
+      userId: user.id,
+      actorType: "super_admin",
+      actorId: user.id,
+      actorEmail: user.email,
+      category: "admin",
+      action: "platform_plan_updated",
+      entityType: "platform_plan",
+      entityId: params.planId,
+      status: "success",
+      severity: "info",
+      message: "Plano SaaS atualizado pelo super admin.",
+      metadata: {
+        planName: (plan as any).name,
+        slug: (plan as any).slug
+      }
+    });
+
     return reply.code(200).send({ plan });
   });
 
@@ -200,6 +257,24 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const result = await new AdminPlatformPlanService(
       new PlatformPlanRepository(supabase)
     ).deletePlan(user.id, params.planId);
+
+    await new AuditLogService(supabase).recordFromRequest(request, {
+      userId: user.id,
+      actorType: "super_admin",
+      actorId: user.id,
+      actorEmail: user.email,
+      category: "admin",
+      action: result.archived ? "platform_plan_archived" : "platform_plan_deleted",
+      entityType: "platform_plan",
+      entityId: params.planId,
+      status: "success",
+      severity: result.archived ? "warning" : "info",
+      message: result.message,
+      metadata: {
+        archived: result.archived,
+        deleted: result.deleted
+      }
+    });
 
     return reply.code(200).send(result);
   });
@@ -223,6 +298,23 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       new PlatformPlanRepository(supabase)
     ).archivePlan(user.id, params.planId);
 
+    await new AuditLogService(supabase).recordFromRequest(request, {
+      userId: user.id,
+      actorType: "super_admin",
+      actorId: user.id,
+      actorEmail: user.email,
+      category: "admin",
+      action: "platform_plan_archived",
+      entityType: "platform_plan",
+      entityId: params.planId,
+      status: "success",
+      severity: "warning",
+      message: "Plano arquivado pelo super admin.",
+      metadata: {
+        planName: (plan as any).name
+      }
+    });
+
     return reply.code(200).send({ plan });
   });
 
@@ -244,6 +336,23 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const plan = await new AdminPlatformPlanService(
       new PlatformPlanRepository(supabase)
     ).restorePlan(user.id, params.planId);
+
+    await new AuditLogService(supabase).recordFromRequest(request, {
+      userId: user.id,
+      actorType: "super_admin",
+      actorId: user.id,
+      actorEmail: user.email,
+      category: "admin",
+      action: "platform_plan_restored",
+      entityType: "platform_plan",
+      entityId: params.planId,
+      status: "success",
+      severity: "info",
+      message: "Plano restaurado pelo super admin.",
+      metadata: {
+        planName: (plan as any).name
+      }
+    });
 
     return reply.code(200).send({ plan });
   });
@@ -378,6 +487,26 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       adminUserId: user.id
     });
 
+    await new AuditLogService(supabase).recordFromRequest(request, {
+      organizationId: payload.organizationId,
+      userId: user.id,
+      actorType: "super_admin",
+      actorId: user.id,
+      actorEmail: user.email,
+      category: "admin",
+      action: payload.lifetime ? "manual_subscription_lifetime_granted" : "manual_subscription_activated",
+      entityType: "organization_subscription",
+      entityId: (subscription as any).id,
+      status: "success",
+      severity: "info",
+      message: "Assinatura alterada manualmente pelo super admin.",
+      metadata: {
+        planId: payload.planId,
+        days: payload.days ?? null,
+        lifetime: payload.lifetime ?? false
+      }
+    });
+
     return reply.code(200).send({ subscription });
   });
 
@@ -408,6 +537,24 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       adminUserId: user.id
     });
 
+    await new AuditLogService(supabase).recordFromRequest(request, {
+      organizationId: payload.organizationId,
+      userId: user.id,
+      actorType: "super_admin",
+      actorId: user.id,
+      actorEmail: user.email,
+      category: "admin",
+      action: "subscription_suspended",
+      entityType: "organization_subscription",
+      entityId: (subscription as any).id,
+      status: "success",
+      severity: "warning",
+      message: "Assinatura suspensa manualmente pelo super admin.",
+      metadata: {
+        notes: payload.notes ?? null
+      }
+    });
+
     return reply.code(200).send({ subscription });
   });
 
@@ -436,6 +583,24 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       organizationId: payload.organizationId,
       notes: payload.notes,
       adminUserId: user.id
+    });
+
+    await new AuditLogService(supabase).recordFromRequest(request, {
+      organizationId: payload.organizationId,
+      userId: user.id,
+      actorType: "super_admin",
+      actorId: user.id,
+      actorEmail: user.email,
+      category: "admin",
+      action: "subscription_cancelled",
+      entityType: "organization_subscription",
+      entityId: (subscription as any).id,
+      status: "success",
+      severity: "warning",
+      message: "Assinatura cancelada manualmente pelo super admin.",
+      metadata: {
+        notes: payload.notes ?? null
+      }
     });
 
     return reply.code(200).send({ subscription });
@@ -470,6 +635,25 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       adminUserId: user.id
     });
 
+    await new AuditLogService(supabase).recordFromRequest(request, {
+      organizationId: payload.organizationId,
+      userId: user.id,
+      actorType: "super_admin",
+      actorId: user.id,
+      actorEmail: user.email,
+      category: "admin",
+      action: "subscription_extended",
+      entityType: "organization_subscription",
+      entityId: (subscription as any).id,
+      status: "success",
+      severity: "info",
+      message: "Assinatura estendida manualmente pelo super admin.",
+      metadata: {
+        days: payload.days,
+        activationSource: payload.activationSource ?? null
+      }
+    });
+
     return reply.code(200).send({ subscription });
   });
 
@@ -499,6 +683,24 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       planId: payload.planId,
       notes: payload.notes,
       adminUserId: user.id
+    });
+
+    await new AuditLogService(supabase).recordFromRequest(request, {
+      organizationId: payload.organizationId,
+      userId: user.id,
+      actorType: "super_admin",
+      actorId: user.id,
+      actorEmail: user.email,
+      category: "admin",
+      action: "subscription_plan_changed",
+      entityType: "organization_subscription",
+      entityId: (subscription as any).id,
+      status: "success",
+      severity: "info",
+      message: "Plano da assinatura alterado pelo super admin.",
+      metadata: {
+        planId: payload.planId
+      }
     });
 
     return reply.code(200).send({ subscription });

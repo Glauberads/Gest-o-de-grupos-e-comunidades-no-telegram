@@ -7,6 +7,7 @@ import { OrganizationRepository } from "../organizations/organization-repository
 import { PlatformPlanRepository } from "../platform-plans/platform-plan-repository.js";
 import { BillingRepository } from "./billing-repository.js";
 import { BillingService } from "./billing-service.js";
+import { AuditLogService } from "../../services/audit/audit-log-service.js";
 
 const billingCheckoutSchema = z.object({
   organizationId: z.uuid(),
@@ -42,11 +43,30 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
       new PlatformPlanRepository(supabase)
     );
 
-    const checkout = await billingService.createPixCheckout({
+    const checkout = (await billingService.createPixCheckout({
       organizationId: payload.organizationId,
       platformPlanId: payload.platformPlanId,
       customerEmail: user.email,
       customerDocument: payload.customerDocument
+    })) as any;
+
+    await new AuditLogService(supabase).recordFromRequest(request, {
+      organizationId: payload.organizationId,
+      userId: user.id,
+      actorType: user.isSuperAdmin ? "super_admin" : "user",
+      actorId: user.id,
+      actorEmail: user.email,
+      category: "billing",
+      action: "pix_checkout_created",
+      entityType: "organization_payment",
+      entityId: checkout.payment?.id ?? null,
+      status: "pending",
+      severity: "info",
+      message: "Cobrança Pix criada para assinatura SaaS.",
+      metadata: {
+        platformPlanId: payload.platformPlanId,
+        paymentId: checkout.payment?.id ?? null
+      }
     });
 
     return reply.code(201).send(checkout);
@@ -109,11 +129,30 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
       new PlatformPlanRepository(supabase)
     );
 
-    const checkout = await billingService.createPixCheckout({
+    const checkout = (await billingService.createPixCheckout({
       organizationId: payload.organizationId,
       platformPlanId: payload.platformPlanId,
       customerEmail: user.email,
       customerDocument: payload.customerDocument
+    })) as any;
+
+    await new AuditLogService(supabase).recordFromRequest(request, {
+      organizationId: payload.organizationId,
+      userId: user.id,
+      actorType: user.isSuperAdmin ? "super_admin" : "user",
+      actorId: user.id,
+      actorEmail: user.email,
+      category: "billing",
+      action: "subscription_reactivation_requested",
+      entityType: "organization_payment",
+      entityId: checkout.payment?.id ?? null,
+      status: "pending",
+      severity: "warning",
+      message: "Nova cobrança criada para regularização da assinatura.",
+      metadata: {
+        platformPlanId: payload.platformPlanId,
+        paymentId: checkout.payment?.id ?? null
+      }
     });
 
     return reply.code(201).send(checkout);

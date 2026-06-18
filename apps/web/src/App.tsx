@@ -42,6 +42,11 @@ const AdminSubscriptionsPage = lazyPage(
   () => import("./pages/admin-subscriptions-page"),
   "AdminSubscriptionsPage"
 );
+const AdminAuditLogsPage = lazyPage(
+  () => import("./pages/admin-audit-logs-page"),
+  "AdminAuditLogsPage"
+);
+const AuditLogsPage = lazyPage(() => import("./pages/audit-logs-page"), "AuditLogsPage");
 const CommunitiesPage = lazyPage(() => import("./pages/communities-page"), "CommunitiesPage");
 const CommunityCreatePage = lazyPage(
   () => import("./pages/community-create-page"),
@@ -464,6 +469,14 @@ export function App() {
               />
             }
           />
+          <Route
+            path="audit-logs"
+            element={
+              <LazyRoute>
+                <AuditLogsPage />
+              </LazyRoute>
+            }
+          />
         </Route>
 
         <Route element={<SuperAdminGuard />}>
@@ -488,6 +501,14 @@ export function App() {
             element={
               <LazyRoute>
                 <AdminSubscriptionsPage />
+              </LazyRoute>
+            }
+          />
+          <Route
+            path="admin/audit-logs"
+            element={
+              <LazyRoute>
+                <AdminAuditLogsPage />
               </LazyRoute>
             }
           />

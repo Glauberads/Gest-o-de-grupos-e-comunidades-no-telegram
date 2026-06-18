@@ -3,6 +3,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { env } from "../../config/env.js";
 import { logger } from "../../lib/logger.js";
 import { getSupabaseAdminClient } from "../../lib/supabase.js";
+import { AuditLogService } from "../audit/audit-log-service.js";
 
 function addDaysIso(days: number) {
   const date = new Date();
@@ -50,6 +51,24 @@ export class WebhookService {
     }
 
     const providerEventId = `${payload.event}:${payload.payment.id}`;
+    const auditService = new AuditLogService(supabase);
+
+    await auditService.record({
+      actorType: "webhook",
+      actorId: providerEventId,
+      category: "webhook",
+      action: "asaas_webhook_received",
+      entityType: "webhook_event",
+      entityId: providerEventId,
+      status: "pending",
+      severity: "info",
+      message: "Webhook do Asaas recebido para processamento.",
+      metadata: {
+        event: payload.event,
+        paymentId: payload.payment.id
+      }
+    });
+
     const existingEvent = await (supabase as any)
       .from("webhook_events")
       .select("id")
@@ -58,6 +77,22 @@ export class WebhookService {
       .maybeSingle();
 
     if (existingEvent.data?.id) {
+      await auditService.record({
+        actorType: "webhook",
+        actorId: providerEventId,
+        category: "webhook",
+        action: "asaas_webhook_ignored",
+        entityType: "webhook_event",
+        entityId: providerEventId,
+        status: "ignored",
+        severity: "warning",
+        message: "Webhook ignorado por duplicidade.",
+        metadata: {
+          event: payload.event,
+          paymentId: payload.payment.id
+        }
+      });
+
       return {
         processed: true,
         duplicate: true
@@ -79,6 +114,22 @@ export class WebhookService {
       .maybeSingle();
 
     if (!payment.data?.id) {
+      await auditService.record({
+        actorType: "webhook",
+        actorId: providerEventId,
+        category: "webhook",
+        action: "asaas_webhook_orphaned",
+        entityType: "organization_payment",
+        entityId: payload.payment.id,
+        status: "ignored",
+        severity: "warning",
+        message: "Webhook recebido sem pagamento correspondente na base.",
+        metadata: {
+          event: payload.event,
+          paymentId: payload.payment.id
+        }
+      });
+
       return {
         processed: true,
         orphaned: true
@@ -113,6 +164,23 @@ export class WebhookService {
         .from("organizations")
         .update({ status: "active" })
         .eq("id", payment.data.organization_id);
+
+      await auditService.record({
+        organizationId: payment.data.organization_id,
+        actorType: "webhook",
+        actorId: providerEventId,
+        category: "billing",
+        action: "asaas_payment_confirmed",
+        entityType: "organization_payment",
+        entityId: payment.data.id,
+        status: "success",
+        severity: "info",
+        message: "Pagamento confirmado via webhook do Asaas.",
+        metadata: {
+          event: payload.event,
+          paymentId: payload.payment.id
+        }
+      });
     }
 
     if (payload.event === "PAYMENT_OVERDUE") {
@@ -136,6 +204,23 @@ export class WebhookService {
         .from("organizations")
         .update({ status: "overdue" })
         .eq("id", payment.data.organization_id);
+
+      await auditService.record({
+        organizationId: payment.data.organization_id,
+        actorType: "webhook",
+        actorId: providerEventId,
+        category: "billing",
+        action: "subscription_marked_overdue",
+        entityType: "organization_payment",
+        entityId: payment.data.id,
+        status: "failed",
+        severity: "warning",
+        message: "Assinatura marcada como vencida após webhook do Asaas.",
+        metadata: {
+          event: payload.event,
+          paymentId: payload.payment.id
+        }
+      });
     }
 
     if (payload.event === "PAYMENT_REFUNDED" || payload.event === "PAYMENT_DELETED") {
@@ -161,6 +246,26 @@ export class WebhookService {
           status: payload.event === "PAYMENT_REFUNDED" ? "cancelled" : "suspended"
         })
         .eq("id", payment.data.organization_id);
+
+      await auditService.record({
+        organizationId: payment.data.organization_id,
+        actorType: "webhook",
+        actorId: providerEventId,
+        category: "billing",
+        action:
+          payload.event === "PAYMENT_REFUNDED"
+            ? "subscription_cancelled_from_refund"
+            : "subscription_suspended_from_payment_delete",
+        entityType: "organization_payment",
+        entityId: payment.data.id,
+        status: "failed",
+        severity: "warning",
+        message: "Webhook do Asaas alterou o status da assinatura.",
+        metadata: {
+          event: payload.event,
+          paymentId: payload.payment.id
+        }
+      });
     }
 
     await (supabase as any)
@@ -171,6 +276,23 @@ export class WebhookService {
       })
       .eq("provider", "asaas")
       .eq("provider_event_id", providerEventId);
+
+    await auditService.record({
+      organizationId: payment.data.organization_id,
+      actorType: "webhook",
+      actorId: providerEventId,
+      category: "webhook",
+      action: "asaas_webhook_processed",
+      entityType: "webhook_event",
+      entityId: providerEventId,
+      status: "success",
+      severity: "info",
+      message: "Webhook do Asaas processado com sucesso.",
+      metadata: {
+        event: payload.event,
+        paymentId: payload.payment.id
+      }
+    });
 
     return {
       processed: true

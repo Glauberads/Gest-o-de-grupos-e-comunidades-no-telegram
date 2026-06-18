@@ -5,6 +5,7 @@ import { decryptSecret, encryptSecret } from "../../lib/crypto.js";
 import { requireAuthenticatedUser, type AuthenticatedUser } from "../../lib/auth.js";
 import { getSupabaseAdminClient } from "../../lib/supabase.js";
 import { telegramClient } from "../../services/telegram/telegram-client.js";
+import { AuditLogService } from "../../services/audit/audit-log-service.js";
 import { OrganizationRepository } from "../organizations/organization-repository.js";
 import { TelegramBotRepository } from "./telegram-bot-repository.js";
 import { TelegramGroupRepository } from "./telegram-group-repository.js";
@@ -91,7 +92,31 @@ export const telegramRoutes: FastifyPluginAsync = async (app) => {
 
     await ensureOrganizationAccess(supabase, user, payload.organizationId, true);
 
-    const me = await telegramClient.getMe(payload.token);
+    let me;
+
+    try {
+      me = await telegramClient.getMe(payload.token);
+    } catch (error) {
+      await new AuditLogService(supabase).recordFromRequest(request, {
+        organizationId: payload.organizationId,
+        userId: user.id,
+        actorType: user.isSuperAdmin ? "super_admin" : "user",
+        actorId: user.id,
+        actorEmail: user.email,
+        category: "telegram",
+        action: "telegram_bot_connect_failed",
+        entityType: "telegram_bot",
+        status: "failed",
+        severity: "warning",
+        message: "Falha ao validar o bot do Telegram.",
+        metadata: {
+          error: error instanceof Error ? error.message : "unknown_error"
+        }
+      }).catch(() => undefined);
+
+      throw error;
+    }
+
     const telegramBot = (await new TelegramBotRepository(supabase).upsert({
       organization_id: payload.organizationId,
       encrypted_token: encryptSecret(payload.token),
@@ -108,6 +133,24 @@ export const telegramRoutes: FastifyPluginAsync = async (app) => {
       metadata: {
         username: me.username ?? null,
         botId: telegramBot.id
+      }
+    });
+
+    await new AuditLogService(supabase).recordFromRequest(request, {
+      organizationId: payload.organizationId,
+      userId: user.id,
+      actorType: user.isSuperAdmin ? "super_admin" : "user",
+      actorId: user.id,
+      actorEmail: user.email,
+      category: "telegram",
+      action: "telegram_bot_connected",
+      entityType: "telegram_bot",
+      entityId: telegramBot.id,
+      status: "success",
+      severity: "info",
+      message: "Bot do Telegram conectado com sucesso.",
+      metadata: {
+        username: me.username ?? null
       }
     });
 
@@ -185,6 +228,24 @@ export const telegramRoutes: FastifyPluginAsync = async (app) => {
       }
     });
 
+    await new AuditLogService(supabase).recordFromRequest(request, {
+      organizationId: payload.organizationId,
+      userId: user.id,
+      actorType: user.isSuperAdmin ? "super_admin" : "user",
+      actorId: user.id,
+      actorEmail: user.email,
+      category: "telegram",
+      action: "telegram_message_sent",
+      entityType: "telegram_group",
+      entityId: payload.telegramChatId,
+      status: "success",
+      severity: "info",
+      message: "Mensagem teste enviada ao Telegram.",
+      metadata: {
+        telegramChatId: payload.telegramChatId
+      }
+    });
+
     return reply.code(200).send({ result });
   });
 
@@ -222,6 +283,25 @@ export const telegramRoutes: FastifyPluginAsync = async (app) => {
       }
     });
 
+    await new AuditLogService(supabase).recordFromRequest(request, {
+      organizationId: payload.organizationId,
+      userId: user.id,
+      actorType: user.isSuperAdmin ? "super_admin" : "user",
+      actorId: user.id,
+      actorEmail: user.email,
+      category: "telegram",
+      action: "telegram_chat_connected",
+      entityType: "telegram_chat",
+      entityId: payload.telegramChatId,
+      status: "success",
+      severity: "info",
+      message: "Chat do Telegram conectado à comunidade.",
+      metadata: {
+        communityId: payload.communityId,
+        title: payload.title
+      }
+    });
+
     return reply.code(200).send({ telegramChat });
   });
 
@@ -240,7 +320,7 @@ export const telegramRoutes: FastifyPluginAsync = async (app) => {
       payload.organizationId
     );
 
-    const telegramGroup = await new TelegramGroupRepository(supabase).upsert({
+    const telegramGroup = (await new TelegramGroupRepository(supabase).upsert({
       organization_id: payload.organizationId,
       community_id: payload.communityId,
       telegram_bot_id: telegramBot?.id ?? null,
@@ -249,7 +329,7 @@ export const telegramRoutes: FastifyPluginAsync = async (app) => {
       chat_type: payload.chatType,
       auto_approve_enabled: payload.botIsAdmin && payload.canInviteUsers,
       welcome_message: null
-    });
+    })) as any;
 
     const telegramChat = await new TelegramChatRepository(supabase).upsert({
       organization_id: payload.organizationId,
@@ -272,6 +352,26 @@ export const telegramRoutes: FastifyPluginAsync = async (app) => {
         telegramChatId: payload.telegramChatId,
         canInviteUsers: payload.canInviteUsers,
         canRestrictMembers: payload.canRestrictMembers
+      }
+    });
+
+    await new AuditLogService(supabase).recordFromRequest(request, {
+      organizationId: payload.organizationId,
+      userId: user.id,
+      actorType: user.isSuperAdmin ? "super_admin" : "user",
+      actorId: user.id,
+      actorEmail: user.email,
+      category: "telegram",
+      action: "telegram_group_created",
+      entityType: "telegram_group",
+      entityId: telegramGroup.id,
+      status: "success",
+      severity: "info",
+      message: "Grupo do Telegram conectado com sucesso.",
+      metadata: {
+        communityId: payload.communityId,
+        telegramChatId: payload.telegramChatId,
+        title: payload.title
       }
     });
 

@@ -6,6 +6,7 @@ import { getSupabaseAdminClient } from "../../lib/supabase.js";
 import { AuthRepository } from "./auth-repository.js";
 import { OrganizationRepository } from "../organizations/organization-repository.js";
 import { OrganizationService } from "../organizations/organization-service.js";
+import { AuditLogService } from "../../services/audit/audit-log-service.js";
 
 const bootstrapSchema = z.object({
   organizationName: z.string().min(2)
@@ -33,6 +34,25 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       email: user.email,
       fullName: user.fullName,
       organizationName: payload.organizationName
+    });
+
+    await new AuditLogService(supabase).recordFromRequest(request, {
+      organizationId: organization.id,
+      userId: user.id,
+      actorType: user.isSuperAdmin ? "super_admin" : "user",
+      actorId: user.id,
+      actorEmail: user.email,
+      category: "auth",
+      action: "organization_created",
+      entityType: "organization",
+      entityId: organization.id,
+      status: "success",
+      severity: "info",
+      message: "Onboarding concluído com criação ou reutilização da organização.",
+      metadata: {
+        organizationName: organization.name,
+        organizationStatus: organization.status
+      }
     });
 
     return reply.code(200).send({

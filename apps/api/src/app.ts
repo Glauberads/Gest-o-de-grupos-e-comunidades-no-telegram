@@ -12,6 +12,8 @@ import {
 } from "./lib/errors.js";
 import { logger } from "./lib/logger.js";
 import { appRoutes } from "./routes/index.js";
+import { getSupabaseAdminClient } from "./lib/supabase.js";
+import { AuditLogService } from "./services/audit/audit-log-service.js";
 
 export function buildApp() {
   const app = Fastify({
@@ -66,6 +68,24 @@ export function buildApp() {
         : statusCode === 500 && isProduction()
           ? "Erro interno do servidor."
           : message;
+
+    const supabase = getSupabaseAdminClient();
+
+    if (supabase && request.url !== "/health") {
+      void new AuditLogService(supabase).recordFromRequest(request, {
+        actorType: "system",
+        category: statusCode >= 500 ? "system" : "security",
+        action: statusCode >= 500 ? "api_error" : "access_blocked",
+        status: "failed",
+        severity: statusCode >= 500 ? "error" : "warning",
+        message: responseMessage,
+        metadata: {
+          path: request.url,
+          method: request.method,
+          statusCode
+        }
+      }).catch(() => undefined);
+    }
 
     return reply.code(statusCode).send({
       message: responseMessage

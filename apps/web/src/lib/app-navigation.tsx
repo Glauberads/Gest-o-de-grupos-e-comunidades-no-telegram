@@ -103,6 +103,12 @@ export const appNavigation: AppNavItem[] = [
         requiresSuperAdmin: true
       },
       {
+        title: "Logs do sistema",
+        href: "/app/admin/audit-logs",
+        icon: MessageSquareText,
+        requiresSuperAdmin: true
+      },
+      {
         title: "Assinaturas",
         href: "/app/admin/subscriptions",
         icon: CreditCard,
@@ -121,7 +127,8 @@ export const appNavigation: AppNavItem[] = [
     children: [
       { title: "Perfil", href: "/app/settings/profile", icon: Settings },
       { title: "Segurança", href: "/app/settings/security", icon: Lock },
-      { title: "Preferências", href: "/app/settings/preferences", icon: LifeBuoy }
+      { title: "Preferências", href: "/app/settings/preferences", icon: LifeBuoy },
+      { title: "Logs", href: "/app/audit-logs", icon: MessageSquareText }
     ]
   }
 ];

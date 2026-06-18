@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { requireAuthenticatedUser } from "../../lib/auth.js";
 import { getSupabaseAdminClient } from "../../lib/supabase.js";
+import { AuditLogService } from "../../services/audit/audit-log-service.js";
 import { OrganizationRepository } from "../organizations/organization-repository.js";
 import { CommunityRepository } from "./community-repository.js";
 
@@ -52,6 +53,25 @@ export const communityRoutes: FastifyPluginAsync = async (app) => {
       image_url: payload.imageUrl,
       welcome_message: payload.welcomeMessage,
       auto_approve_enabled: payload.autoApproveEnabled
+    });
+
+    await new AuditLogService(supabase).recordFromRequest(request, {
+      organizationId: payload.organizationId,
+      userId: user.id,
+      actorType: user.isSuperAdmin ? "super_admin" : "user",
+      actorId: user.id,
+      actorEmail: user.email,
+      category: "community",
+      action: "community_created",
+      entityType: "community",
+      entityId: (community as any).id,
+      status: "success",
+      severity: "info",
+      message: "Comunidade criada no painel.",
+      metadata: {
+        communityName: payload.name,
+        telegramChatId: payload.telegramChatId
+      }
     });
 
     return reply.code(201).send({

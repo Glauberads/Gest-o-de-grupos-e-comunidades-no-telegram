@@ -323,6 +323,67 @@ export type Database = {
         };
         Relationships: [];
       };
+      audit_logs: {
+        Row: {
+          action: string;
+          actor_email: string | null;
+          actor_id: string | null;
+          actor_type: string;
+          category: string;
+          created_at: string;
+          entity_id: string | null;
+          entity_type: string | null;
+          id: string;
+          ip_address: string | null;
+          message: string;
+          metadata: Json;
+          organization_id: string | null;
+          request_id: string | null;
+          severity: string;
+          status: string;
+          user_agent: string | null;
+          user_id: string | null;
+        };
+        Insert: {
+          action: string;
+          actor_email?: string | null;
+          actor_id?: string | null;
+          actor_type: string;
+          category: string;
+          entity_id?: string | null;
+          entity_type?: string | null;
+          ip_address?: string | null;
+          message: string;
+          metadata?: Json;
+          organization_id?: string | null;
+          request_id?: string | null;
+          severity?: string;
+          status?: string;
+          user_agent?: string | null;
+          user_id?: string | null;
+        };
+        Update: {
+          action?: string;
+          actor_email?: string | null;
+          actor_id?: string | null;
+          actor_type?: string;
+          category?: string;
+          created_at?: string;
+          entity_id?: string | null;
+          entity_type?: string | null;
+          id?: string;
+          ip_address?: string | null;
+          message?: string;
+          metadata?: Json;
+          organization_id?: string | null;
+          request_id?: string | null;
+          severity?: string;
+          status?: string;
+          user_agent?: string | null;
+          user_id?: string | null;
+        };
+        Relationships: [];
+      };
       subscription_audit_logs: {
         Row: {
           action: string;
