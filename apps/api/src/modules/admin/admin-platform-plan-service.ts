@@ -204,15 +204,16 @@ export class AdminPlatformPlanService {
   async deletePlan(adminUserId: string, planId: string) {
     const currentPlan = await this.repository.findById(planId);
     const linkedSubscriptions = await this.repository.countLinkedSubscriptions(planId);
+    const linkedPayments = await this.repository.countLinkedPayments(planId);
 
-    if (linkedSubscriptions > 0) {
+    if (linkedSubscriptions > 0 || linkedPayments > 0) {
       const archivedPlan = await this.archivePlan(adminUserId, planId);
 
       return {
         deleted: false,
         archived: true,
         message:
-          "Este plano possui assinaturas vinculadas. Para preservar o histórico, ele foi arquivado em vez de removido.",
+          "Este plano possui histórico vinculado de assinaturas ou pagamentos. Para preservar a rastreabilidade, ele foi arquivado em vez de removido.",
         plan: archivedPlan
       };
     }

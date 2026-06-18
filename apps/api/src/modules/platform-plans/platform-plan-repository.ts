@@ -126,6 +126,21 @@ export class PlatformPlanRepository {
     return (result.count ?? 0) as number;
   }
 
+  async countLinkedPayments(planId: string) {
+    const result = await (this.supabase as any)
+      .from("organization_payments")
+      .select("id", { head: true, count: "exact" })
+      .eq("platform_plan_id", planId);
+
+    if (result.error) {
+      throw new IntegrationError("Failed to count linked payments", {
+        error: result.error.message
+      });
+    }
+
+    return (result.count ?? 0) as number;
+  }
+
   async createAdminAuditLog(input: Database["public"]["Tables"]["admin_audit_logs"]["Insert"]) {
     const result = await (this.supabase as any)
       .from("admin_audit_logs")
