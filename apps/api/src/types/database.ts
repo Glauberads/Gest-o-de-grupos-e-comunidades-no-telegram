@@ -79,6 +79,7 @@ export type Database = {
       };
       organization_payments: {
         Row: {
+          activation_source: string;
           amount_cents: number;
           asaas_customer_id: string | null;
           asaas_payment_id: string | null;
@@ -90,6 +91,7 @@ export type Database = {
           invoice_url: string | null;
           organization_id: string;
           organization_subscription_id: string;
+          notes: string | null;
           paid_at: string | null;
           pix_payload: string | null;
           pix_qr_code_image: string | null;
@@ -99,6 +101,7 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          activation_source?: string;
           amount_cents: number;
           asaas_customer_id?: string | null;
           asaas_payment_id?: string | null;
@@ -108,6 +111,7 @@ export type Database = {
           invoice_url?: string | null;
           organization_id: string;
           organization_subscription_id: string;
+          notes?: string | null;
           paid_at?: string | null;
           pix_payload?: string | null;
           pix_qr_code_image?: string | null;
@@ -116,6 +120,7 @@ export type Database = {
           status?: string;
         };
         Update: {
+          activation_source?: string;
           amount_cents?: number;
           asaas_customer_id?: string | null;
           asaas_payment_id?: string | null;
@@ -126,6 +131,7 @@ export type Database = {
           invoice_url?: string | null;
           organization_id?: string;
           organization_subscription_id?: string;
+          notes?: string | null;
           paid_at?: string | null;
           pix_payload?: string | null;
           pix_qr_code_image?: string | null;
@@ -138,6 +144,8 @@ export type Database = {
       };
       organization_subscriptions: {
         Row: {
+          activation_source: string;
+          active_until: string | null;
           asaas_subscription_id: string | null;
           cancelled_at: string | null;
           created_at: string;
@@ -145,7 +153,9 @@ export type Database = {
           current_period_start: string | null;
           grace_period_ends_at: string | null;
           id: string;
+          lifetime: boolean;
           metadata: Json;
+          notes: string | null;
           organization_id: string;
           platform_plan_id: string;
           started_at: string | null;
@@ -153,25 +163,33 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          activation_source?: string;
+          active_until?: string | null;
           asaas_subscription_id?: string | null;
           cancelled_at?: string | null;
           current_period_end?: string | null;
           current_period_start?: string | null;
           grace_period_ends_at?: string | null;
+          lifetime?: boolean;
           metadata?: Json;
+          notes?: string | null;
           organization_id: string;
           platform_plan_id: string;
           started_at?: string | null;
           status?: string;
         };
         Update: {
+          activation_source?: string;
+          active_until?: string | null;
           asaas_subscription_id?: string | null;
           cancelled_at?: string | null;
           current_period_end?: string | null;
           current_period_start?: string | null;
           grace_period_ends_at?: string | null;
           id?: string;
+          lifetime?: boolean;
           metadata?: Json;
+          notes?: string | null;
           organization_id?: string;
           platform_plan_id?: string;
           started_at?: string | null;
@@ -208,39 +226,131 @@ export type Database = {
       };
       platform_plans: {
         Row: {
+          archived_at: string | null;
           billing_interval: string;
           code: string;
           created_at: string;
           description: string | null;
           features: Json;
+          has_advanced_reports: boolean;
+          has_ai_moderation: boolean;
+          has_priority_support: boolean;
           id: string;
+          is_featured: boolean;
+          max_automations: number;
+          max_communities: number;
+          max_telegram_groups: number;
           name: string;
           price_cents: number;
+          slug: string;
+          sort_order: number;
           status: string;
           trial_days: number;
           updated_at: string;
         };
         Insert: {
+          archived_at?: string | null;
           billing_interval?: string;
           code: string;
           description?: string | null;
           features?: Json;
+          has_advanced_reports?: boolean;
+          has_ai_moderation?: boolean;
+          has_priority_support?: boolean;
+          is_featured?: boolean;
+          max_automations?: number;
+          max_communities?: number;
+          max_telegram_groups?: number;
           name: string;
           price_cents: number;
+          slug: string;
+          sort_order?: number;
           status?: string;
           trial_days?: number;
         };
         Update: {
+          archived_at?: string | null;
           billing_interval?: string;
           code?: string;
           description?: string | null;
           features?: Json;
+          has_advanced_reports?: boolean;
+          has_ai_moderation?: boolean;
+          has_priority_support?: boolean;
           id?: string;
+          is_featured?: boolean;
+          max_automations?: number;
+          max_communities?: number;
+          max_telegram_groups?: number;
           name?: string;
           price_cents?: number;
+          slug?: string;
+          sort_order?: number;
           status?: string;
           trial_days?: number;
           updated_at?: string;
+        };
+        Relationships: [];
+      };
+      admin_audit_logs: {
+        Row: {
+          action: string;
+          admin_user_id: string;
+          created_at: string;
+          entity_id: string;
+          entity_type: string;
+          id: string;
+          new_value: Json | null;
+          old_value: Json | null;
+        };
+        Insert: {
+          action: string;
+          admin_user_id: string;
+          entity_id: string;
+          entity_type: string;
+          new_value?: Json | null;
+          old_value?: Json | null;
+        };
+        Update: {
+          action?: string;
+          admin_user_id?: string;
+          created_at?: string;
+          entity_id?: string;
+          entity_type?: string;
+          id?: string;
+          new_value?: Json | null;
+          old_value?: Json | null;
+        };
+        Relationships: [];
+      };
+      subscription_audit_logs: {
+        Row: {
+          action: string;
+          admin_user_id: string;
+          created_at: string;
+          id: string;
+          new_status: string | null;
+          notes: string | null;
+          old_status: string | null;
+          organization_id: string;
+        };
+        Insert: {
+          action: string;
+          admin_user_id: string;
+          new_status?: string | null;
+          notes?: string | null;
+          old_status?: string | null;
+          organization_id: string;
+        };
+        Update: {
+          action?: string;
+          admin_user_id?: string;
+          created_at?: string;
+          id?: string;
+          new_status?: string | null;
+          notes?: string | null;
+          old_status?: string | null;
+          organization_id?: string;
         };
         Relationships: [];
       };

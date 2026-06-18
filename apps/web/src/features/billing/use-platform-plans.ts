@@ -5,6 +5,7 @@ import { apiRequest } from "@/lib/api";
 export type PlatformPlan = {
   id: string;
   name: string;
+  slug: string;
   code: string;
   description: string | null;
   price_cents: number;
@@ -12,6 +13,15 @@ export type PlatformPlan = {
   trial_days: number;
   features: string[];
   status: string;
+  is_featured: boolean;
+  max_communities: number;
+  max_telegram_groups: number;
+  max_automations: number;
+  has_priority_support: boolean;
+  has_advanced_reports: boolean;
+  has_ai_moderation: boolean;
+  sort_order: number;
+  archived_at: string | null;
 };
 
 export function usePlatformPlans() {

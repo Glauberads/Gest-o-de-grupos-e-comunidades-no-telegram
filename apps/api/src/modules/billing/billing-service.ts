@@ -29,7 +29,11 @@ export class BillingService {
     const subscription = (await this.billingRepository.upsertOrganizationSubscription({
       organization_id: organization.id,
       platform_plan_id: plan.id,
-      status: "pending_payment"
+      status: "pending_payment",
+      activation_source: "asaas",
+      lifetime: false,
+      active_until: null,
+      notes: null
     })) as any;
 
     const customer = await asaasClient.createCustomer({
@@ -75,6 +79,7 @@ export class BillingService {
       status: "pending",
       amount_cents: plan.price_cents,
       due_date: dueDate,
+      activation_source: "asaas",
       pix_payload: pixQrCode?.payload ?? null,
       pix_qr_code_image: pixQrCode?.encodedImage ?? null,
       invoice_url: payment.invoiceUrl ?? null,

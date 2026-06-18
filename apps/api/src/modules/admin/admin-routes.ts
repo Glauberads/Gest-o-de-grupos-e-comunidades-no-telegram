@@ -1,13 +1,257 @@
 import type { FastifyPluginAsync } from "fastify";
+import { z } from "zod";
 
 import { requireAuthenticatedUser } from "../../lib/auth.js";
 import { getSupabaseAdminClient } from "../../lib/supabase.js";
+import { BillingRepository } from "../billing/billing-repository.js";
+import { OrganizationRepository } from "../organizations/organization-repository.js";
+import { PlatformPlanRepository } from "../platform-plans/platform-plan-repository.js";
+import { AdminPlatformPlanService } from "./admin-platform-plan-service.js";
+import {
+  AdminSubscriptionService,
+  isManualActivationSource
+} from "./admin-subscription-service.js";
+
+const platformPlanIdParamsSchema = z.object({
+  planId: z.uuid()
+});
+
+const billingCycleSchema = z.enum(["monthly", "quarterly", "semiannual", "annual", "lifetime"]);
+const platformPlanStatusSchema = z.enum(["active", "inactive", "archived"]);
+
+const platformPlanPayloadSchema = z.object({
+  name: z.string().min(2, "Nome obrigatório."),
+  slug: z
+    .string()
+    .min(2, "Slug obrigatório.")
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use apenas letras minúsculas, números e hífens."),
+  description: z.string().max(1000).optional().nullable(),
+  priceCents: z.coerce.number().int().min(0, "O preço deve ser maior ou igual a zero."),
+  billingCycle: billingCycleSchema,
+  maxCommunities: z.coerce.number().int().min(0),
+  maxTelegramGroups: z.coerce.number().int().min(0),
+  maxAutomations: z.coerce.number().int().min(0),
+  hasPrioritySupport: z.boolean().default(false),
+  hasAdvancedReports: z.boolean().default(false),
+  hasAiModeration: z.boolean().default(false),
+  isFeatured: z.boolean().default(false),
+  status: platformPlanStatusSchema.default("inactive"),
+  sortOrder: z.coerce.number().int().min(0).default(0)
+});
+
+const organizationIdParamsSchema = z.object({
+  organizationId: z.uuid()
+});
+
+const activateSubscriptionSchema = z.object({
+  organizationId: z.uuid(),
+  planId: z.uuid(),
+  days: z.coerce.number().int().min(1).optional(),
+  lifetime: z.boolean().optional(),
+  notes: z.string().max(500).optional(),
+  activationSource: z
+    .string()
+    .optional()
+    .refine((value) => !value || isManualActivationSource(value), {
+      message: "Origem de ativação inválida."
+    })
+}).refine((value) => value.lifetime === true || Boolean(value.days), {
+  message: "Informe a quantidade de dias ou marque o acesso vitalício.",
+  path: ["days"]
+});
+
+const suspendSubscriptionSchema = z.object({
+  organizationId: z.uuid(),
+  notes: z.string().max(500).optional()
+});
+
+const cancelSubscriptionSchema = z.object({
+  organizationId: z.uuid(),
+  notes: z.string().max(500).optional()
+});
+
+const extendSubscriptionSchema = z.object({
+  organizationId: z.uuid(),
+  days: z.coerce.number().int().min(1),
+  notes: z.string().max(500).optional(),
+  activationSource: z
+    .string()
+    .optional()
+    .refine((value) => !value || isManualActivationSource(value), {
+      message: "Origem de ativação inválida."
+    })
+});
+
+const changePlanSchema = z.object({
+  organizationId: z.uuid(),
+  planId: z.uuid(),
+  notes: z.string().max(500).optional()
+});
+
+async function requireSuperAdminAccess(request: Parameters<typeof requireAuthenticatedUser>[0]) {
+  const user = await requireAuthenticatedUser(request);
+
+  if (!user.isSuperAdmin) {
+    throw new Error("Only super admins can access this resource");
+  }
+
+  return user;
+}
 
 export const adminRoutes: FastifyPluginAsync = async (app) => {
-  app.get("/admin/users", async (request, reply) => {
-    const user = await requireAuthenticatedUser(request);
+  app.get("/admin/platform-plans", async (request, reply) => {
+    try {
+      await requireSuperAdminAccess(request);
+    } catch {
+      return reply.code(403).send({ message: "Only super admins can access this resource" });
+    }
 
-    if (!user.isSuperAdmin) {
+    const supabase = getSupabaseAdminClient();
+
+    if (!supabase) {
+      return reply.code(500).send({ message: "Supabase admin client is not configured" });
+    }
+
+    const plans = await new AdminPlatformPlanService(new PlatformPlanRepository(supabase)).listPlans();
+    return reply.code(200).send({ plans });
+  });
+
+  app.post("/admin/platform-plans", async (request, reply) => {
+    let user;
+    try {
+      user = await requireSuperAdminAccess(request);
+    } catch {
+      return reply.code(403).send({ message: "Only super admins can access this resource" });
+    }
+
+    const payload = platformPlanPayloadSchema.parse(request.body);
+    const supabase = getSupabaseAdminClient();
+
+    if (!supabase) {
+      return reply.code(500).send({ message: "Supabase admin client is not configured" });
+    }
+
+    const plan = await new AdminPlatformPlanService(
+      new PlatformPlanRepository(supabase)
+    ).createPlan(user.id, payload);
+
+    return reply.code(201).send({ plan });
+  });
+
+  app.get("/admin/platform-plans/:planId", async (request, reply) => {
+    try {
+      await requireSuperAdminAccess(request);
+    } catch {
+      return reply.code(403).send({ message: "Only super admins can access this resource" });
+    }
+
+    const params = platformPlanIdParamsSchema.parse(request.params);
+    const supabase = getSupabaseAdminClient();
+
+    if (!supabase) {
+      return reply.code(500).send({ message: "Supabase admin client is not configured" });
+    }
+
+    const plan = await new AdminPlatformPlanService(
+      new PlatformPlanRepository(supabase)
+    ).getPlan(params.planId);
+
+    return reply.code(200).send({ plan });
+  });
+
+  app.patch("/admin/platform-plans/:planId", async (request, reply) => {
+    let user;
+    try {
+      user = await requireSuperAdminAccess(request);
+    } catch {
+      return reply.code(403).send({ message: "Only super admins can access this resource" });
+    }
+
+    const params = platformPlanIdParamsSchema.parse(request.params);
+    const payload = platformPlanPayloadSchema.parse(request.body);
+    const supabase = getSupabaseAdminClient();
+
+    if (!supabase) {
+      return reply.code(500).send({ message: "Supabase admin client is not configured" });
+    }
+
+    const plan = await new AdminPlatformPlanService(
+      new PlatformPlanRepository(supabase)
+    ).updatePlan(user.id, params.planId, payload);
+
+    return reply.code(200).send({ plan });
+  });
+
+  app.delete("/admin/platform-plans/:planId", async (request, reply) => {
+    let user;
+    try {
+      user = await requireSuperAdminAccess(request);
+    } catch {
+      return reply.code(403).send({ message: "Only super admins can access this resource" });
+    }
+
+    const params = platformPlanIdParamsSchema.parse(request.params);
+    const supabase = getSupabaseAdminClient();
+
+    if (!supabase) {
+      return reply.code(500).send({ message: "Supabase admin client is not configured" });
+    }
+
+    const result = await new AdminPlatformPlanService(
+      new PlatformPlanRepository(supabase)
+    ).deletePlan(user.id, params.planId);
+
+    return reply.code(200).send(result);
+  });
+
+  app.post("/admin/platform-plans/:planId/archive", async (request, reply) => {
+    let user;
+    try {
+      user = await requireSuperAdminAccess(request);
+    } catch {
+      return reply.code(403).send({ message: "Only super admins can access this resource" });
+    }
+
+    const params = platformPlanIdParamsSchema.parse(request.params);
+    const supabase = getSupabaseAdminClient();
+
+    if (!supabase) {
+      return reply.code(500).send({ message: "Supabase admin client is not configured" });
+    }
+
+    const plan = await new AdminPlatformPlanService(
+      new PlatformPlanRepository(supabase)
+    ).archivePlan(user.id, params.planId);
+
+    return reply.code(200).send({ plan });
+  });
+
+  app.post("/admin/platform-plans/:planId/restore", async (request, reply) => {
+    let user;
+    try {
+      user = await requireSuperAdminAccess(request);
+    } catch {
+      return reply.code(403).send({ message: "Only super admins can access this resource" });
+    }
+
+    const params = platformPlanIdParamsSchema.parse(request.params);
+    const supabase = getSupabaseAdminClient();
+
+    if (!supabase) {
+      return reply.code(500).send({ message: "Supabase admin client is not configured" });
+    }
+
+    const plan = await new AdminPlatformPlanService(
+      new PlatformPlanRepository(supabase)
+    ).restorePlan(user.id, params.planId);
+
+    return reply.code(200).send({ plan });
+  });
+
+  app.get("/admin/users", async (request, reply) => {
+    try {
+      await requireSuperAdminAccess(request);
+    } catch {
       return reply.code(403).send({ message: "Only super admins can access this resource" });
     }
 
@@ -31,9 +275,9 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.get("/admin/organizations", async (request, reply) => {
-    const user = await requireAuthenticatedUser(request);
-
-    if (!user.isSuperAdmin) {
+    try {
+      await requireSuperAdminAccess(request);
+    } catch {
       return reply.code(403).send({ message: "Only super admins can access this resource" });
     }
 
@@ -54,5 +298,209 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
 
     return reply.code(200).send({ organizations: organizationsResult.data ?? [] });
+  });
+
+  app.get("/admin/subscriptions", async (request, reply) => {
+    try {
+      await requireSuperAdminAccess(request);
+    } catch {
+      return reply.code(403).send({ message: "Only super admins can access this resource" });
+    }
+
+    const supabase = getSupabaseAdminClient();
+
+    if (!supabase) {
+      return reply.code(500).send({ message: "Supabase admin client is not configured" });
+    }
+
+    const service = new AdminSubscriptionService(
+      new BillingRepository(supabase),
+      new OrganizationRepository(supabase),
+      new PlatformPlanRepository(supabase)
+    );
+
+    const subscriptions = await service.listSubscriptions();
+    return reply.code(200).send({ subscriptions });
+  });
+
+  app.get("/admin/subscriptions/:organizationId", async (request, reply) => {
+    try {
+      await requireSuperAdminAccess(request);
+    } catch {
+      return reply.code(403).send({ message: "Only super admins can access this resource" });
+    }
+
+    const params = organizationIdParamsSchema.parse(request.params);
+    const supabase = getSupabaseAdminClient();
+
+    if (!supabase) {
+      return reply.code(500).send({ message: "Supabase admin client is not configured" });
+    }
+
+    const service = new AdminSubscriptionService(
+      new BillingRepository(supabase),
+      new OrganizationRepository(supabase),
+      new PlatformPlanRepository(supabase)
+    );
+
+    const details = await service.getSubscriptionDetails(params.organizationId);
+    return reply.code(200).send(details);
+  });
+
+  app.post("/admin/subscriptions/activate", async (request, reply) => {
+    let user;
+    try {
+      user = await requireSuperAdminAccess(request);
+    } catch {
+      return reply.code(403).send({ message: "Only super admins can access this resource" });
+    }
+
+    const payload = activateSubscriptionSchema.parse(request.body);
+    const supabase = getSupabaseAdminClient();
+
+    if (!supabase) {
+      return reply.code(500).send({ message: "Supabase admin client is not configured" });
+    }
+
+    const service = new AdminSubscriptionService(
+      new BillingRepository(supabase),
+      new OrganizationRepository(supabase),
+      new PlatformPlanRepository(supabase)
+    );
+
+    const subscription = await service.activateManually({
+      organizationId: payload.organizationId,
+      planId: payload.planId,
+      days: payload.days,
+      lifetime: payload.lifetime,
+      notes: payload.notes,
+      activationSource: payload.activationSource as any,
+      adminUserId: user.id
+    });
+
+    return reply.code(200).send({ subscription });
+  });
+
+  app.post("/admin/subscriptions/suspend", async (request, reply) => {
+    let user;
+    try {
+      user = await requireSuperAdminAccess(request);
+    } catch {
+      return reply.code(403).send({ message: "Only super admins can access this resource" });
+    }
+
+    const payload = suspendSubscriptionSchema.parse(request.body);
+    const supabase = getSupabaseAdminClient();
+
+    if (!supabase) {
+      return reply.code(500).send({ message: "Supabase admin client is not configured" });
+    }
+
+    const service = new AdminSubscriptionService(
+      new BillingRepository(supabase),
+      new OrganizationRepository(supabase),
+      new PlatformPlanRepository(supabase)
+    );
+
+    const subscription = await service.suspend({
+      organizationId: payload.organizationId,
+      notes: payload.notes,
+      adminUserId: user.id
+    });
+
+    return reply.code(200).send({ subscription });
+  });
+
+  app.post("/admin/subscriptions/cancel", async (request, reply) => {
+    let user;
+    try {
+      user = await requireSuperAdminAccess(request);
+    } catch {
+      return reply.code(403).send({ message: "Only super admins can access this resource" });
+    }
+
+    const payload = cancelSubscriptionSchema.parse(request.body);
+    const supabase = getSupabaseAdminClient();
+
+    if (!supabase) {
+      return reply.code(500).send({ message: "Supabase admin client is not configured" });
+    }
+
+    const service = new AdminSubscriptionService(
+      new BillingRepository(supabase),
+      new OrganizationRepository(supabase),
+      new PlatformPlanRepository(supabase)
+    );
+
+    const subscription = await service.cancel({
+      organizationId: payload.organizationId,
+      notes: payload.notes,
+      adminUserId: user.id
+    });
+
+    return reply.code(200).send({ subscription });
+  });
+
+  app.post("/admin/subscriptions/extend", async (request, reply) => {
+    let user;
+    try {
+      user = await requireSuperAdminAccess(request);
+    } catch {
+      return reply.code(403).send({ message: "Only super admins can access this resource" });
+    }
+
+    const payload = extendSubscriptionSchema.parse(request.body);
+    const supabase = getSupabaseAdminClient();
+
+    if (!supabase) {
+      return reply.code(500).send({ message: "Supabase admin client is not configured" });
+    }
+
+    const service = new AdminSubscriptionService(
+      new BillingRepository(supabase),
+      new OrganizationRepository(supabase),
+      new PlatformPlanRepository(supabase)
+    );
+
+    const subscription = await service.extend({
+      organizationId: payload.organizationId,
+      days: payload.days,
+      notes: payload.notes,
+      activationSource: payload.activationSource as any,
+      adminUserId: user.id
+    });
+
+    return reply.code(200).send({ subscription });
+  });
+
+  app.post("/admin/subscriptions/change-plan", async (request, reply) => {
+    let user;
+    try {
+      user = await requireSuperAdminAccess(request);
+    } catch {
+      return reply.code(403).send({ message: "Only super admins can access this resource" });
+    }
+
+    const payload = changePlanSchema.parse(request.body);
+    const supabase = getSupabaseAdminClient();
+
+    if (!supabase) {
+      return reply.code(500).send({ message: "Supabase admin client is not configured" });
+    }
+
+    const service = new AdminSubscriptionService(
+      new BillingRepository(supabase),
+      new OrganizationRepository(supabase),
+      new PlatformPlanRepository(supabase)
+    );
+
+    const subscription = await service.changePlan({
+      organizationId: payload.organizationId,
+      planId: payload.planId,
+      notes: payload.notes,
+      adminUserId: user.id
+    });
+
+    return reply.code(200).send({ subscription });
   });
 };

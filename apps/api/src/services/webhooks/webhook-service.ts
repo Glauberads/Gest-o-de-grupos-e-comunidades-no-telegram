@@ -102,7 +102,10 @@ export class WebhookService {
           started_at: new Date().toISOString(),
           current_period_start: new Date().toISOString(),
           current_period_end: addDaysIso(30),
-          grace_period_ends_at: null
+          active_until: addDaysIso(30),
+          grace_period_ends_at: null,
+          activation_source: "asaas",
+          lifetime: false
         })
         .eq("id", payment.data.organization_subscription_id);
 

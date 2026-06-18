@@ -38,6 +38,10 @@ const AdminOrganizationsPage = lazyPage(
   () => import("./pages/admin-organizations-page"),
   "AdminOrganizationsPage"
 );
+const AdminSubscriptionsPage = lazyPage(
+  () => import("./pages/admin-subscriptions-page"),
+  "AdminSubscriptionsPage"
+);
 const CommunitiesPage = lazyPage(() => import("./pages/communities-page"), "CommunitiesPage");
 const CommunityCreatePage = lazyPage(
   () => import("./pages/community-create-page"),
@@ -476,6 +480,14 @@ export function App() {
             element={
               <LazyRoute>
                 <AdminPlansPage />
+              </LazyRoute>
+            }
+          />
+          <Route
+            path="admin/subscriptions"
+            element={
+              <LazyRoute>
+                <AdminSubscriptionsPage />
               </LazyRoute>
             }
           />

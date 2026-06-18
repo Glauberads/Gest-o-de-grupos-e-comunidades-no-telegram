@@ -102,6 +102,12 @@ export const appNavigation: AppNavItem[] = [
         icon: Gauge,
         requiresSuperAdmin: true
       },
+      {
+        title: "Assinaturas",
+        href: "/app/admin/subscriptions",
+        icon: CreditCard,
+        requiresSuperAdmin: true
+      },
       { title: "Planos SaaS", href: "/app/admin/plans", icon: CreditCard, requiresSuperAdmin: true },
       { title: "Usuários", href: "/app/admin/users", icon: Users, requiresSuperAdmin: true },
       { title: "Organizações", href: "/app/admin/organizations", icon: Building2, requiresSuperAdmin: true }

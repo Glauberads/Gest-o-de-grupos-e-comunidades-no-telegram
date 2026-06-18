@@ -8,6 +8,15 @@ type DatabaseClient = SupabaseClient<Database>;
 export class BillingRepository {
   constructor(private readonly supabase: DatabaseClient) {}
 
+  async listOrganizationSubscriptions() {
+    const result = await (this.supabase as any)
+      .from("organization_subscriptions")
+      .select("*, platform_plans(*), organizations(id, name, slug, status, owner_user_id)")
+      .order("created_at", { ascending: false });
+
+    return unwrapSupabase(result, "Failed to load organization subscriptions");
+  }
+
   async getOrganizationSubscription(organizationId: string) {
     const result = await (this.supabase as any)
       .from("organization_subscriptions")
@@ -20,6 +29,35 @@ export class BillingRepository {
     }
 
     return result.data;
+  }
+
+  async getOrganizationSubscriptionDetails(organizationId: string) {
+    const subscriptionResult = await (this.supabase as any)
+      .from("organization_subscriptions")
+      .select("*, platform_plans(*), organizations(id, name, slug, status, owner_user_id)")
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+
+    const auditResult = await (this.supabase as any)
+      .from("subscription_audit_logs")
+      .select("*")
+      .eq("organization_id", organizationId)
+      .order("created_at", { ascending: false })
+      .limit(30);
+
+    const latestPaymentResult = await (this.supabase as any)
+      .from("organization_payments")
+      .select("*")
+      .eq("organization_id", organizationId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    return {
+      subscription: unwrapSupabase(subscriptionResult, "Failed to load organization subscription"),
+      auditLogs: unwrapSupabase(auditResult, "Failed to load subscription audit logs"),
+      latestPayment: unwrapSupabase(latestPaymentResult, "Failed to load latest organization payment")
+    };
   }
 
   async getLatestOrganizationPayment(organizationId: string) {
@@ -61,6 +99,20 @@ export class BillingRepository {
     return unwrapSupabase(result, "Failed to save organization subscription");
   }
 
+  async updateOrganizationSubscription(
+    organizationId: string,
+    input: Database["public"]["Tables"]["organization_subscriptions"]["Update"]
+  ) {
+    const result = await (this.supabase as any)
+      .from("organization_subscriptions")
+      .update(input)
+      .eq("organization_id", organizationId)
+      .select("*")
+      .single();
+
+    return unwrapSupabase(result, "Failed to update organization subscription");
+  }
+
   async createOrganizationPayment(
     input: Database["public"]["Tables"]["organization_payments"]["Insert"]
   ) {
@@ -99,5 +151,17 @@ export class BillingRepository {
       .single();
 
     return unwrapSupabase(result, "Failed to update organization payment");
+  }
+
+  async createSubscriptionAuditLog(
+    input: Database["public"]["Tables"]["subscription_audit_logs"]["Insert"]
+  ) {
+    const result = await (this.supabase as any)
+      .from("subscription_audit_logs")
+      .insert(input)
+      .select("*")
+      .single();
+
+    return unwrapSupabase(result, "Failed to create subscription audit log");
   }
 }

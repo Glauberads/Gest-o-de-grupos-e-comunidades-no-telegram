@@ -3,7 +3,7 @@ import { supabase } from "./supabase";
 const apiUrl = import.meta.env.VITE_API_URL;
 
 type RequestOptions = {
-  method?: "GET" | "POST";
+  method?: "GET" | "POST" | "PATCH" | "DELETE";
   body?: unknown;
 };
 
