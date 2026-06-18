@@ -18,6 +18,12 @@ type CreateCustomerInput = {
   externalReference: string;
 };
 
+type PixQrCodeResponse = {
+  encodedImage: string;
+  payload: string;
+  expirationDate?: string;
+};
+
 export class AsaasClient {
   async createCustomer(input: CreateCustomerInput) {
     if (!env.ASAAS_API_KEY) {
@@ -85,6 +91,35 @@ export class AsaasClient {
     }
 
     return response.json();
+  }
+
+  async getPixQrCode(paymentId: string) {
+    if (!env.ASAAS_API_KEY) {
+      return {
+        encodedImage: "",
+        payload: "00020101021226820014br.gov.bcb.pix...",
+        expirationDate: new Date().toISOString()
+      } satisfies PixQrCodeResponse;
+    }
+
+    const response = await fetch(`${env.ASAAS_BASE_URL}/payments/${paymentId}/pixQrCode`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        access_token: env.ASAAS_API_KEY
+      }
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+
+      throw new IntegrationError("Failed to fetch Asaas Pix QR code", {
+        status: response.status,
+        body
+      });
+    }
+
+    return response.json() as Promise<PixQrCodeResponse>;
   }
 }
 

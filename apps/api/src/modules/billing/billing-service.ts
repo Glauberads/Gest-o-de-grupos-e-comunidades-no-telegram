@@ -1,4 +1,5 @@
 import { asaasClient } from "../../services/asaas/asaas-client.js";
+import { logger } from "../../lib/logger.js";
 import { BillingRepository } from "./billing-repository.js";
 import { OrganizationRepository } from "../organizations/organization-repository.js";
 import { PlatformPlanRepository } from "../platform-plans/platform-plan-repository.js";
@@ -48,6 +49,23 @@ export class BillingService {
       externalReference: organization.id
     });
 
+    let pixQrCode: { payload?: string | null; encodedImage?: string | null } | null =
+      payment.pixQrCode ?? null;
+
+    if (!pixQrCode?.payload || !pixQrCode?.encodedImage) {
+      try {
+        pixQrCode = await asaasClient.getPixQrCode(payment.id);
+      } catch (error) {
+        logger.warn(
+          {
+            error,
+            paymentId: payment.id
+          },
+          "Failed to enrich payment with Asaas Pix QR code"
+        );
+      }
+    }
+
     const organizationPayment = await this.billingRepository.createOrganizationPayment({
       organization_id: organization.id,
       organization_subscription_id: subscription.id,
@@ -57,11 +75,14 @@ export class BillingService {
       status: "pending",
       amount_cents: plan.price_cents,
       due_date: dueDate,
-      pix_payload: payment.pixQrCode?.payload ?? null,
-      pix_qr_code_image: payment.pixQrCode?.encodedImage ?? null,
+      pix_payload: pixQrCode?.payload ?? null,
+      pix_qr_code_image: pixQrCode?.encodedImage ?? null,
       invoice_url: payment.invoiceUrl ?? null,
       external_reference: organization.id,
-      raw_payload: payment
+      raw_payload: {
+        payment,
+        pixQrCode
+      }
     });
 
     await this.organizationRepository.updateStatus(organization.id, "pending_payment");
@@ -73,15 +94,46 @@ export class BillingService {
         id: payment.id,
         status: payment.status,
         invoiceUrl: payment.invoiceUrl ?? null,
-        pixPayload: payment.pixQrCode?.payload ?? null,
-        pixQrCodeImage: payment.pixQrCode?.encodedImage ?? null
+        pixPayload: pixQrCode?.payload ?? null,
+        pixQrCodeImage: pixQrCode?.encodedImage ?? null
       }
     };
   }
 
   async getSubscription(organizationId: string) {
     const subscription = await this.billingRepository.getOrganizationSubscription(organizationId);
-    const latestPayment = await this.billingRepository.getLatestOrganizationPayment(organizationId);
+    let latestPayment = await this.billingRepository.getLatestOrganizationPayment(organizationId);
+
+    if (
+      latestPayment?.asaas_payment_id &&
+      (!latestPayment.pix_payload || !latestPayment.pix_qr_code_image) &&
+      latestPayment.status === "pending"
+    ) {
+      try {
+        const pixQrCode = await asaasClient.getPixQrCode(latestPayment.asaas_payment_id);
+
+        latestPayment = await this.billingRepository.updateOrganizationPayment(latestPayment.id, {
+          pix_payload: pixQrCode.payload,
+          pix_qr_code_image: pixQrCode.encodedImage,
+          raw_payload: {
+            ...(typeof latestPayment.raw_payload === "object" &&
+            latestPayment.raw_payload !== null &&
+            !Array.isArray(latestPayment.raw_payload)
+              ? latestPayment.raw_payload
+              : {}),
+            pixQrCode
+          }
+        });
+      } catch (error) {
+        logger.warn(
+          {
+            error,
+            paymentId: latestPayment.asaas_payment_id
+          },
+          "Failed to backfill Pix QR code for latest payment"
+        );
+      }
+    }
 
     return {
       subscription,
