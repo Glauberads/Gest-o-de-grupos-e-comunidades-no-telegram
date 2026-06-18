@@ -120,6 +120,49 @@ async function requireSuperAdminAccess(request: Parameters<typeof requireAuthent
 }
 
 export const adminRoutes: FastifyPluginAsync = async (app) => {
+  async function deletePlatformPlanHandler(
+    request: Parameters<FastifyPluginAsync>[0] extends never ? never : any,
+    reply: any
+  ) {
+    let user;
+    try {
+      user = await requireSuperAdminAccess(request);
+    } catch {
+      return reply.code(403).send({ message: "Only super admins can access this resource" });
+    }
+
+    const params = platformPlanIdParamsSchema.parse(request.params);
+    const supabase = getSupabaseAdminClient();
+
+    if (!supabase) {
+      return reply.code(500).send({ message: "Supabase admin client is not configured" });
+    }
+
+    const result = await new AdminPlatformPlanService(
+      new PlatformPlanRepository(supabase)
+    ).deletePlan(user.id, params.planId);
+
+    await new AuditLogService(supabase).recordFromRequest(request, {
+      userId: user.id,
+      actorType: "super_admin",
+      actorId: user.id,
+      actorEmail: user.email,
+      category: "admin",
+      action: result.archived ? "platform_plan_archived" : "platform_plan_deleted",
+      entityType: "platform_plan",
+      entityId: params.planId,
+      status: "success",
+      severity: result.archived ? "warning" : "info",
+      message: result.message,
+      metadata: {
+        archived: result.archived,
+        deleted: result.deleted
+      }
+    });
+
+    return reply.code(200).send(result);
+  }
+
   app.get("/admin/platform-plans", async (request, reply) => {
     try {
       await requireSuperAdminAccess(request);
@@ -239,45 +282,8 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     return reply.code(200).send({ plan });
   });
 
-  app.delete("/admin/platform-plans/:planId", async (request, reply) => {
-    let user;
-    try {
-      user = await requireSuperAdminAccess(request);
-    } catch {
-      return reply.code(403).send({ message: "Only super admins can access this resource" });
-    }
-
-    const params = platformPlanIdParamsSchema.parse(request.params);
-    const supabase = getSupabaseAdminClient();
-
-    if (!supabase) {
-      return reply.code(500).send({ message: "Supabase admin client is not configured" });
-    }
-
-    const result = await new AdminPlatformPlanService(
-      new PlatformPlanRepository(supabase)
-    ).deletePlan(user.id, params.planId);
-
-    await new AuditLogService(supabase).recordFromRequest(request, {
-      userId: user.id,
-      actorType: "super_admin",
-      actorId: user.id,
-      actorEmail: user.email,
-      category: "admin",
-      action: result.archived ? "platform_plan_archived" : "platform_plan_deleted",
-      entityType: "platform_plan",
-      entityId: params.planId,
-      status: "success",
-      severity: result.archived ? "warning" : "info",
-      message: result.message,
-      metadata: {
-        archived: result.archived,
-        deleted: result.deleted
-      }
-    });
-
-    return reply.code(200).send(result);
-  });
+  app.delete("/admin/platform-plans/:planId", deletePlatformPlanHandler);
+  app.post("/admin/platform-plans/:planId/delete", deletePlatformPlanHandler);
 
   app.post("/admin/platform-plans/:planId/archive", async (request, reply) => {
     let user;

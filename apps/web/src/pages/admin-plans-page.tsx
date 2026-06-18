@@ -289,8 +289,8 @@ export function AdminPlansPage() {
 
     try {
       const payload = await apiRequest<{ message: string }>(
-        `/api/admin/platform-plans/${planId}`,
-        { method: "DELETE" as never }
+        `/api/admin/platform-plans/${planId}/delete`,
+        { method: "POST" }
       );
       setMessage(payload.message);
       if (selectedPlanId === planId) {
