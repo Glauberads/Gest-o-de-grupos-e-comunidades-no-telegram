@@ -24,6 +24,7 @@ export function SubscriptionPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [submittingPlanId, setSubmittingPlanId] = useState<string | null>(null);
   const [customerDocument, setCustomerDocument] = useState("");
+  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
 
   if (!organizationsLoading && organization?.status === "active") {
     return <Navigate to="/app" replace />;
@@ -70,6 +71,20 @@ export function SubscriptionPage() {
     suspended: "Assinatura suspensa. Gere uma nova cobranca para reativar o acesso.",
     cancelled: "Assinatura cancelada. Escolha um plano para reativar.",
     trial: "Periodo de teste ativo."
+  };
+
+  const paymentStatusLabel: Record<string, string> = {
+    PENDING: "Pagamento aguardando confirmacao",
+    RECEIVED: "Pagamento recebido",
+    CONFIRMED: "Pagamento confirmado",
+    OVERDUE: "Pagamento vencido"
+  };
+
+  const paymentStatusTone: Record<string, string> = {
+    PENDING: "border-amber-400/30 bg-amber-400/10 text-amber-200",
+    RECEIVED: "border-emerald-400/30 bg-emerald-400/10 text-emerald-200",
+    CONFIRMED: "border-emerald-400/30 bg-emerald-400/10 text-emerald-200",
+    OVERDUE: "border-rose-400/30 bg-rose-400/10 text-rose-200"
   };
 
   return (
@@ -146,9 +161,23 @@ export function SubscriptionPage() {
 
             {checkout ? (
               <div className="mt-6 space-y-4 text-sm">
-                <div>
-                  <div className="text-slate-400">Status</div>
-                  <div>{checkout.checkout.status}</div>
+                <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="text-slate-400">Situacao do pagamento</div>
+                      <div className="mt-1 text-base font-medium text-slate-100">
+                        {paymentStatusLabel[checkout.checkout.status] ?? checkout.checkout.status}
+                      </div>
+                    </div>
+                    <span
+                      className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${paymentStatusTone[checkout.checkout.status] ?? "border-slate-700 bg-slate-800 text-slate-200"}`}
+                    >
+                      {checkout.checkout.status}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-sm text-slate-400">
+                    Assim que o Asaas confirmar o Pix, sua organizacao sera liberada automaticamente.
+                  </p>
                 </div>
                 <div>
                   <div className="text-slate-400">Pix copia e cola</div>
@@ -158,16 +187,30 @@ export function SubscriptionPage() {
                     value={checkout.checkout.pixPayload ?? "Pix indisponivel no momento"}
                   />
                 </div>
-                {checkout.checkout.invoiceUrl ? (
-                  <a
-                    className="inline-flex rounded-xl bg-sky-400 px-4 py-3 font-medium text-slate-950"
-                    href={checkout.checkout.invoiceUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Abrir cobranca
-                  </a>
-                ) : null}
+                <div className="flex flex-wrap gap-3">
+                  {checkout.checkout.invoiceUrl ? (
+                    <>
+                      <Button
+                        className="bg-sky-400 text-slate-950 hover:bg-sky-300"
+                        onClick={() => setIsInvoiceModalOpen(true)}
+                      >
+                        Abrir cobranca aqui
+                      </Button>
+                      <a
+                        className="inline-flex items-center rounded-xl border border-slate-700 px-4 py-3 font-medium text-slate-100"
+                        href={checkout.checkout.invoiceUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Abrir em nova aba
+                      </a>
+                    </>
+                  ) : (
+                    <div className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-300">
+                      O Asaas ainda nao retornou uma pagina de cobranca para abrir.
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="mt-6 rounded-xl border border-dashed border-slate-700 px-4 py-8 text-sm text-slate-400">
@@ -177,6 +220,40 @@ export function SubscriptionPage() {
           </Card>
         </section>
       </div>
+
+      {isInvoiceModalOpen && checkout?.checkout?.invoiceUrl ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4 py-6 backdrop-blur-sm">
+          <div className="flex h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl border border-slate-800 bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+              <div>
+                <div className="text-sm font-medium text-slate-500">Checkout Asaas</div>
+                <div className="text-lg font-semibold text-slate-900">
+                  Finalize seu pagamento sem sair da pagina
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <a
+                  className="inline-flex items-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+                  href={checkout.checkout.invoiceUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Abrir em nova aba
+                </a>
+                <Button variant="outline" onClick={() => setIsInvoiceModalOpen(false)}>
+                  Fechar
+                </Button>
+              </div>
+            </div>
+
+            <iframe
+              title="Checkout Asaas"
+              src={checkout.checkout.invoiceUrl}
+              className="h-full w-full bg-white"
+            />
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
