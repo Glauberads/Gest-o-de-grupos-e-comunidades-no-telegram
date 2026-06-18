@@ -37,6 +37,14 @@ function buildFeatures(input: {
 export class AdminPlatformPlanService {
   constructor(private readonly repository: PlatformPlanRepository) {}
 
+  private async writeAdminAuditLog(input: Database["public"]["Tables"]["admin_audit_logs"]["Insert"]) {
+    try {
+      await this.repository.createAdminAuditLog(input);
+    } catch {
+      return;
+    }
+  }
+
   async listPlans() {
     return this.repository.listAll();
   }
@@ -94,7 +102,7 @@ export class AdminPlatformPlanService {
     };
 
     const plan = await this.repository.create(payload);
-    await this.repository.createAdminAuditLog({
+    await this.writeAdminAuditLog({
       admin_user_id: adminUserId,
       action: "create_platform_plan",
       entity_type: "platform_plan",
@@ -157,7 +165,7 @@ export class AdminPlatformPlanService {
     };
 
     const plan = await this.repository.update(planId, payload);
-    await this.repository.createAdminAuditLog({
+    await this.writeAdminAuditLog({
       admin_user_id: adminUserId,
       action: "update_platform_plan",
       entity_type: "platform_plan",
@@ -173,7 +181,7 @@ export class AdminPlatformPlanService {
     const currentPlan = await this.repository.findById(planId);
     const plan = await this.repository.archive(planId);
 
-    await this.repository.createAdminAuditLog({
+    await this.writeAdminAuditLog({
       admin_user_id: adminUserId,
       action: "archive_platform_plan",
       entity_type: "platform_plan",
@@ -189,7 +197,7 @@ export class AdminPlatformPlanService {
     const currentPlan = await this.repository.findById(planId);
     const plan = await this.repository.restore(planId);
 
-    await this.repository.createAdminAuditLog({
+    await this.writeAdminAuditLog({
       admin_user_id: adminUserId,
       action: "restore_platform_plan",
       entity_type: "platform_plan",
@@ -219,7 +227,7 @@ export class AdminPlatformPlanService {
     }
 
     await this.repository.delete(planId);
-    await this.repository.createAdminAuditLog({
+    await this.writeAdminAuditLog({
       admin_user_id: adminUserId,
       action: "delete_platform_plan",
       entity_type: "platform_plan",

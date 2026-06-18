@@ -120,6 +120,22 @@ async function requireSuperAdminAccess(request: Parameters<typeof requireAuthent
 }
 
 export const adminRoutes: FastifyPluginAsync = async (app) => {
+  async function recordAdminAuditSafely(
+    supabase: ReturnType<typeof getSupabaseAdminClient>,
+    request: Parameters<FastifyPluginAsync>[0] extends never ? never : any,
+    input: Parameters<AuditLogService["recordFromRequest"]>[1]
+  ) {
+    if (!supabase) {
+      return;
+    }
+
+    try {
+      await new AuditLogService(supabase).recordFromRequest(request, input);
+    } catch {
+      return;
+    }
+  }
+
   async function deletePlatformPlanHandler(
     request: Parameters<FastifyPluginAsync>[0] extends never ? never : any,
     reply: any
@@ -142,7 +158,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       new PlatformPlanRepository(supabase)
     ).deletePlan(user.id, params.planId);
 
-    await new AuditLogService(supabase).recordFromRequest(request, {
+    await recordAdminAuditSafely(supabase, request, {
       userId: user.id,
       actorType: "super_admin",
       actorId: user.id,
@@ -199,7 +215,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       new PlatformPlanRepository(supabase)
     ).createPlan(user.id, payload);
 
-    await new AuditLogService(supabase).recordFromRequest(request, {
+    await recordAdminAuditSafely(supabase, request, {
       userId: user.id,
       actorType: "super_admin",
       actorId: user.id,
@@ -261,7 +277,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       new PlatformPlanRepository(supabase)
     ).updatePlan(user.id, params.planId, payload);
 
-    await new AuditLogService(supabase).recordFromRequest(request, {
+    await recordAdminAuditSafely(supabase, request, {
       userId: user.id,
       actorType: "super_admin",
       actorId: user.id,
@@ -304,7 +320,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       new PlatformPlanRepository(supabase)
     ).archivePlan(user.id, params.planId);
 
-    await new AuditLogService(supabase).recordFromRequest(request, {
+    await recordAdminAuditSafely(supabase, request, {
       userId: user.id,
       actorType: "super_admin",
       actorId: user.id,
