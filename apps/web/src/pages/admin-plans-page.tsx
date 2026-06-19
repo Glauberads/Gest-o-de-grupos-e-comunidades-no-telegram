@@ -288,11 +288,19 @@ export function AdminPlansPage() {
     setPendingActionLabel("Removendo...");
 
     try {
-      const payload = await apiRequest<{ message: string }>(
+      const payload = await apiRequest<{
+        ok: boolean;
+        mode: "deleted" | "archived";
+        message: string;
+      }>(
         `/api/admin/platform-plans/${planId}/delete`,
         { method: "POST" }
       );
-      setMessage(payload.message);
+      setMessage(
+        payload.mode === "archived"
+          ? payload.message
+          : "Plano removido com sucesso."
+      );
       if (selectedPlanId === planId) {
         setMode("create");
         setSelectedPlanId(null);

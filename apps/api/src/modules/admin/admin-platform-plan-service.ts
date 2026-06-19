@@ -218,8 +218,12 @@ export class AdminPlatformPlanService {
       const archivedPlan = await this.archivePlan(adminUserId, planId);
 
       return {
+        ok: true,
+        mode: "archived" as const,
         deleted: false,
         archived: true,
+        subscriptionCount: linkedSubscriptions,
+        paymentCount: linkedPayments,
         message:
           "Este plano possui histórico vinculado de assinaturas ou pagamentos. Para preservar a rastreabilidade, ele foi arquivado em vez de removido.",
         plan: archivedPlan
@@ -237,8 +241,12 @@ export class AdminPlatformPlanService {
     });
 
     return {
+      ok: true,
+      mode: "deleted" as const,
       deleted: true,
       archived: false,
+      subscriptionCount: linkedSubscriptions,
+      paymentCount: linkedPayments,
       message: "Plano removido com sucesso."
     };
   }

@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 
 import { requireAuthenticatedUser } from "../../lib/auth.js";
+import { logger } from "../../lib/logger.js";
 import { getSupabaseAdminClient } from "../../lib/supabase.js";
 import { AuditLogService } from "../../services/audit/audit-log-service.js";
 import { BillingRepository } from "../billing/billing-repository.js";
@@ -89,6 +90,16 @@ const changePlanSchema = z.object({
   notes: z.string().max(500).optional()
 });
 
+function getErrorDetails(error: unknown) {
+  const nextError = error as { name?: string; message?: string; code?: string };
+
+  return {
+    name: nextError?.name ?? "Error",
+    message: nextError?.message ?? "Unknown error",
+    code: nextError?.code ?? null
+  };
+}
+
 async function requireSuperAdminAccess(request: Parameters<typeof requireAuthenticatedUser>[0]) {
   const user = await requireAuthenticatedUser(request);
 
@@ -154,9 +165,50 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(500).send({ message: "Supabase admin client is not configured" });
     }
 
-    const result = await new AdminPlatformPlanService(
-      new PlatformPlanRepository(supabase)
-    ).deletePlan(user.id, params.planId);
+    let result;
+
+    try {
+      result = await new AdminPlatformPlanService(
+        new PlatformPlanRepository(supabase)
+      ).deletePlan(user.id, params.planId);
+    } catch (error) {
+      const details = getErrorDetails(error);
+
+      logger.error(
+        {
+          err: error,
+          planId: params.planId,
+          requestId: request.id
+        },
+        "Failed to delete or archive platform plan"
+      );
+
+      await recordAdminAuditSafely(supabase, request, {
+        userId: user.id,
+        actorType: "super_admin",
+        actorId: user.id,
+        actorEmail: user.email,
+        category: "admin",
+        action: "platform_plan_delete_failed",
+        entityType: "platform_plan",
+        entityId: params.planId,
+        status: "failed",
+        severity: "error",
+        message: "Falha ao remover ou arquivar plano SaaS.",
+        metadata: {
+          planId: params.planId,
+          reason: details.message,
+          errorName: details.name,
+          errorCode: details.code
+        }
+      });
+
+      return reply.code(500).send({
+        ok: false,
+        message: "Não foi possível remover este plano.",
+        requestId: request.id
+      });
+    }
 
     await recordAdminAuditSafely(supabase, request, {
       userId: user.id,
@@ -316,9 +368,50 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(500).send({ message: "Supabase admin client is not configured" });
     }
 
-    const plan = await new AdminPlatformPlanService(
-      new PlatformPlanRepository(supabase)
-    ).archivePlan(user.id, params.planId);
+    let plan;
+
+    try {
+      plan = await new AdminPlatformPlanService(
+        new PlatformPlanRepository(supabase)
+      ).archivePlan(user.id, params.planId);
+    } catch (error) {
+      const details = getErrorDetails(error);
+
+      logger.error(
+        {
+          err: error,
+          planId: params.planId,
+          requestId: request.id
+        },
+        "Failed to archive platform plan"
+      );
+
+      await recordAdminAuditSafely(supabase, request, {
+        userId: user.id,
+        actorType: "super_admin",
+        actorId: user.id,
+        actorEmail: user.email,
+        category: "admin",
+        action: "platform_plan_archive_failed",
+        entityType: "platform_plan",
+        entityId: params.planId,
+        status: "failed",
+        severity: "error",
+        message: "Falha ao arquivar plano SaaS.",
+        metadata: {
+          planId: params.planId,
+          reason: details.message,
+          errorName: details.name,
+          errorCode: details.code
+        }
+      });
+
+      return reply.code(500).send({
+        ok: false,
+        message: "Não foi possível arquivar este plano.",
+        requestId: request.id
+      });
+    }
 
     await recordAdminAuditSafely(supabase, request, {
       userId: user.id,

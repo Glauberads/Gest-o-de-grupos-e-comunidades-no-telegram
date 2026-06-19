@@ -47,6 +47,15 @@ export function buildApp() {
     }
 
     const message = error instanceof Error ? error.message : "Internal server error";
+    const errorMetadata = {
+      errorName: error instanceof Error ? error.name : "Error",
+      errorMessage: message,
+      errorCode:
+        typeof error === "object" && error && "code" in error
+          ? String((error as { code?: unknown }).code)
+          : null,
+      stack: !isProduction() && error instanceof Error ? error.stack : null
+    };
 
     let statusCode = 500;
 
@@ -82,7 +91,8 @@ export function buildApp() {
         metadata: {
           path: request.url,
           method: request.method,
-          statusCode
+          statusCode,
+          ...errorMetadata
         }
       }).catch(() => undefined);
     }
