@@ -90,6 +90,26 @@ const changePlanSchema = z.object({
   notes: z.string().max(500).optional()
 });
 
+const createManualCustomerSchema = z.object({
+  email: z.email("Email inválido.").transform((value) => value.trim().toLowerCase()),
+  fullName: z.string().min(2, "Nome obrigatório.").max(160).transform((value) => value.trim()),
+  organizationName: z.string().min(2, "Nome da organização obrigatório.").max(160).transform((value) => value.trim()),
+  password: z.string().min(8, "A senha temporária precisa ter pelo menos 8 caracteres."),
+  organizationStatus: z.enum(["pending_payment", "active"]).default("pending_payment")
+});
+
+function createSlug(value: string, suffix: string) {
+  const baseSlug = value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+
+  return `${baseSlug || "cliente"}-${suffix}`;
+}
+
 function getErrorDetails(error: unknown) {
   const nextError = error as { name?: string; message?: string; code?: string };
 
@@ -496,6 +516,165 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
 
     return reply.code(200).send({ users: usersResult.data ?? [] });
+  });
+
+  app.post("/admin/users", async (request, reply) => {
+    let adminUser;
+
+    try {
+      adminUser = await requireSuperAdminAccess(request);
+    } catch {
+      return reply.code(403).send({ message: "Only super admins can access this resource" });
+    }
+
+    const payload = createManualCustomerSchema.parse(request.body);
+    const supabase = getSupabaseAdminClient();
+
+    if (!supabase) {
+      return reply.code(500).send({ message: "Supabase admin client is not configured" });
+    }
+
+    let createdAuthUserId: string | null = null;
+
+    try {
+      const authResult = await supabase.auth.admin.createUser({
+        email: payload.email,
+        password: payload.password,
+        email_confirm: true,
+        user_metadata: {
+          full_name: payload.fullName
+        },
+        app_metadata: {
+          is_super_admin: false,
+          role: "tenant"
+        }
+      });
+
+      if (authResult.error || !authResult.data.user) {
+        return reply.code(400).send({
+          message:
+            authResult.error?.message === "A user with this email address has already been registered"
+              ? "Já existe um usuário cadastrado com este email."
+              : authResult.error?.message ?? "Não foi possível criar o usuário no Supabase Auth."
+        });
+      }
+
+      createdAuthUserId = authResult.data.user.id;
+      const organizationSlug = createSlug(payload.organizationName, createdAuthUserId.slice(0, 8));
+
+      const userResult = await (supabase as any)
+        .from("users")
+        .upsert(
+          {
+            id: createdAuthUserId,
+            email: payload.email,
+            full_name: payload.fullName,
+            password_hash: "managed_by_supabase_auth"
+          },
+          { onConflict: "id" }
+        )
+        .select("id, email, full_name, created_at")
+        .single();
+
+      if (userResult.error) {
+        throw userResult.error;
+      }
+
+      const organizationResult = await (supabase as any)
+        .from("organizations")
+        .insert({
+          name: payload.organizationName,
+          slug: organizationSlug,
+          owner_user_id: createdAuthUserId,
+          status: payload.organizationStatus
+        })
+        .select("id, name, slug, status, owner_user_id, created_at")
+        .single();
+
+      if (organizationResult.error) {
+        throw organizationResult.error;
+      }
+
+      const organizationUserResult = await (supabase as any)
+        .from("organization_users")
+        .insert({
+          organization_id: organizationResult.data.id,
+          user_id: createdAuthUserId,
+          role: "owner"
+        });
+
+      if (organizationUserResult.error) {
+        throw organizationUserResult.error;
+      }
+
+      await recordAdminAuditSafely(supabase, request, {
+        userId: adminUser.id,
+        organizationId: organizationResult.data.id,
+        actorType: "super_admin",
+        actorId: adminUser.id,
+        actorEmail: adminUser.email,
+        category: "admin",
+        action: "manual_customer_created",
+        entityType: "organization",
+        entityId: organizationResult.data.id,
+        status: "success",
+        severity: "info",
+        message: "Cliente criado manualmente pelo super admin.",
+        metadata: {
+          customerUserId: createdAuthUserId,
+          customerEmail: payload.email,
+          organizationStatus: payload.organizationStatus
+        }
+      });
+
+      return reply.code(201).send({
+        user: userResult.data,
+        organization: organizationResult.data
+      });
+    } catch (error) {
+      logger.error(
+        {
+          err: error,
+          requestId: request.id,
+          createdAuthUserId
+        },
+        "Failed to create manual customer"
+      );
+
+      if (createdAuthUserId) {
+        await supabase.auth.admin.deleteUser(createdAuthUserId).catch((rollbackError) => {
+          logger.error(
+            {
+              err: rollbackError,
+              requestId: request.id,
+              createdAuthUserId
+            },
+            "Failed to rollback manual customer auth user"
+          );
+        });
+      }
+
+      await recordAdminAuditSafely(supabase, request, {
+        userId: adminUser.id,
+        actorType: "super_admin",
+        actorId: adminUser.id,
+        actorEmail: adminUser.email,
+        category: "admin",
+        action: "manual_customer_create_failed",
+        entityType: "user",
+        status: "failed",
+        severity: "error",
+        message: "Falha ao criar cliente manualmente.",
+        metadata: {
+          customerEmail: payload.email,
+          error: getErrorDetails(error)
+        }
+      });
+
+      return reply.code(500).send({
+        message: "Não foi possível criar o cliente agora. Verifique os logs da API e tente novamente."
+      });
+    }
   });
 
   app.get("/admin/organizations", async (request, reply) => {
