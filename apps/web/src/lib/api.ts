@@ -18,12 +18,14 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}) 
     data: { session }
   } = await supabase.auth.getSession();
 
-  const headers = new Headers({
-    "Content-Type": "application/json"
-  });
+  const headers = new Headers();
 
   if (session?.access_token) {
     headers.set("Authorization", `Bearer ${session.access_token}`);
+  }
+
+  if (options.body !== undefined) {
+    headers.set("Content-Type", "application/json");
   }
 
   let response: Response;
@@ -32,7 +34,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}) 
     response = await fetch(`${apiUrl}${path}`, {
       method: options.method ?? "GET",
       headers,
-      body: options.body ? JSON.stringify(options.body) : undefined
+      body: options.body !== undefined ? JSON.stringify(options.body) : undefined
     });
   } catch (error) {
     throw new Error(
